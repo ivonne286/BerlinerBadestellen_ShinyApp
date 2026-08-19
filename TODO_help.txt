@@ -1,0 +1,18 @@
+Tomorrow I'd go in this order:
+
+Sidebar: make the selected-district information useful and visually strong.
+Lakes: add lake_count and potentially the 3 nearest bathing sites.
+Popup: decide what can move to the sidebar so it becomes lighter.
+Optional lake layer: show bathing-site points + names on the Bezirke map.
+Visual polish: colors, typography, map title, sidebar hierarchy, maybe a better selected-district treatment.
+Then rankings / comparisons between the 12 Bezirke.
+
+And I especially like your idea of distinguishing:
+
+Bathing sites in this district
+
+from
+
+Nearest bathing sites
+
+because those answer different questions. We can make that distinction very clear rather than mixing them up.

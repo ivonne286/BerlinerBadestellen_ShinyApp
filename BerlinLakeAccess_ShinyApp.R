@@ -47,7 +47,7 @@ ui <- fluidPage(
         
         # Tab 1 Bezirke
         tabPanel(
-          title = "Bezirke",
+          title = "Berlin Districts",
           value = "map1",
           tmapOutput("bezirke_map", height="800px")
         ),
@@ -80,6 +80,10 @@ ui <- fluidPage(
 # ─────────────────────────────────────────────────────────
 server <- function(input, output, session) {
   
+  observe({
+    print(input$bezirke_map_shape_click)
+  })
+  
   # ─────────────────────────────────────────────────────────
   # SIDEBARS CHANGING DEPENDING ON MAP
   # ─────────────────────────────────────────────────────────
@@ -90,9 +94,10 @@ server <- function(input, output, session) {
       
       tagList(
         
-        h4("Map 1"),
-        h5("Statistics"),
-        p("Placeholder for statistics"),
+        h4("Berlin Districts: Access to Bathing Sites"),
+        hr(),
+        h5("Information"),
+        p("Select a Travel mode and click a district on the map."),
         hr(),
         selectInput(
           inputId = "mode_1",
@@ -102,7 +107,11 @@ server <- function(input, output, session) {
             "Walking" = "foot-walking"
           ),
           selected = "cycling-regular"
-        )
+        ),
+        hr(),
+        uiOutput("selected_bezirk_info"),
+        hr(),
+        
       )
       
     } else if (input$map_tab == "map2") {
@@ -239,27 +248,44 @@ server <- function(input, output, session) {
     
     req(input$mode_1)
     
-    # define map vars depending on travel mode
+    # ── 1. DEFINE VARIABLES DEPENDING ON TRAVEL MODE ─
+    
     if (input$mode_1 == "cycling-regular") {
-      access_var <- "cycle_within_20_pct"
+      over_20_pct <- "cycle_not_within_20_pct"
+      within_20_pct <- "cycle_within_20_pct"
       fill_values <- c("#54FF9F", "#2E8B57")
-      legend_title <- "max 20-min cycling access"
+      legend_title <- "Resident share over 20 min — Cycling"
+      map_title <- "Berlin Districts: Share of residents more than 20 minutes from an official bathing site - Cycling"
     } else {
-      access_var <- "walk_within_20_pct"
+      over_20_pct <- "walk_not_within_20_pct"
+      within_20_pct <- "walk_within_20_pct"
       fill_values <- c("khaki2", "khaki4")
-      legend_title <- "max 20-min walking access"
+      legend_title <- "Resident share over 20 min — Walking"
+      map_title <- "Berlin Districts: Share of residents more than 20 minutes from an official bathing site - Walking"
     }
     
-    # map
+    
+    # ── 2. DEFINE POPUP VARIABLES AND STYLE ──
+    
+    popup_data <- shiny_bezirke |>
+      mutate(
+        within_20_label = paste0(.data[[within_20_pct]], "%"),
+        over_20_label = paste0(.data[[over_20_pct]], "%")
+      )
+    
+    # ── 3. MAP ──
+    
     tm_basemap("CartoDB.Positron") +
       
-      tm_shape(shiny_bezirke) +
+      tm_shape(popup_data) +
+      
       tm_polygons(
-        fill = access_var,
+        
+        fill = over_20_pct,
         fill.scale = tm_scale_continuous(
           values = fill_values,
-          ticks = c(0, 100),
-          labels = c("Lower", "Higher")
+          ticks = c(0, 25, 50, 75, 100),
+          labels = c("0%", "25%", "50%", "75%", "100%")
         ),
         fill.legend = tm_legend(
           title = legend_title
@@ -268,23 +294,75 @@ server <- function(input, output, session) {
         col = "white",
         lwd = 1,
         
+        id = "bezirk",
         hover = "bezirk",
+        
         popup = tm_popup(
           vars = c(
             "Population" = "pop_total",
-            "Pop. Density" = "pop_density",
-            "Amount of Bathing Sites (BS): " = "lake_count",
-            "Shortest average Distance to any Lake (km)" = "nearest_dist_lake_km"
+            "Population density" = "pop_density",
+            "Bathing sites in district" = "lake_count",
+            "Resident share within 20 min" = "within_20_label",
+            "Resident share over 20 min" = "over_20_label"
           ),
           title = "bezirk"
         )
+        
       ) +
       
-      tm_view(
-        set_view = c(13.405, 52.52, 10)
-      )
+      tm_title(map_title) +
+      
+      tm_view(set_view = c(13.405, 52.52, 10))
     
   })
+  
+  
+  # ─────────────────────────────────────────────────────────
+  # REACTIVE ELEMENTS
+  # ─────────────────────────────────────────────────────────
+  
+  # ── Selections ──
+  
+  selected_bezirk <- reactive({
+    
+    req(input$bezirke_map_shape_click$id)
+    
+    clicked_bezirk <- input$bezirke_map_shape_click$id
+    
+    # tmap replaces hyphens with underscores in the feature ID
+    clicked_bezirk <- gsub("_", "-", clicked_bezirk)
+    
+    shiny_bezirke |>
+      filter(bezirk == clicked_bezirk)
+  })
+  
+  
+  
+  # ── Reactive Output ──
+  
+  output$selected_bezirk_info <- renderUI({
+    
+    req(input$bezirke_map_shape_click$id)
+    
+    bezirk_name <- selected_bezirk()$bezirk[[1]]
+    
+    if (input$mode_1 == "cycling-regular") {
+      access_pct <- selected_bezirk()$cycle_not_within_20_pct
+      access_label <- "Residents over 20 min by bicycle"
+    } else {
+      access_pct <- selected_bezirk()$walk_not_within_20_pct
+      access_label <- "Residents over 20 min on foot"
+    }
+    
+    div(
+      h4(bezirk_name),
+      h2(paste0(access_pct, "%")),
+      p(access_label)
+    )
+    
+  })
+  
+  
 }
 
 shinyApp(ui, server)
