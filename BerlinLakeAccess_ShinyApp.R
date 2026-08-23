@@ -80,10 +80,6 @@ ui <- fluidPage(
 # ─────────────────────────────────────────────────────────
 server <- function(input, output, session) {
   
-  observe({
-    print(input$bezirke_map_shape_click)
-  })
-  
   # ─────────────────────────────────────────────────────────
   # SIDEBARS CHANGING DEPENDING ON MAP
   # ─────────────────────────────────────────────────────────
@@ -329,8 +325,11 @@ server <- function(input, output, session) {
     
     clicked_bezirk <- input$bezirke_map_shape_click$id
     
-    # tmap replaces hyphens with underscores in the feature ID
-    clicked_bezirk <- gsub("_", "-", clicked_bezirk)
+    # tmap replaces hyphens with underscores in the feature ID; reverse that
+    # by matching against the known bezirk names (none of which contain underscores)
+    clicked_bezirk <- shiny_bezirke$bezirk[
+      gsub("-", "_", shiny_bezirke$bezirk) == clicked_bezirk
+    ]
     
     shiny_bezirke |>
       filter(bezirk == clicked_bezirk)
@@ -343,14 +342,15 @@ server <- function(input, output, session) {
   output$selected_bezirk_info <- renderUI({
     
     req(input$bezirke_map_shape_click$id)
+    req(input$mode_1)
     
     bezirk_name <- selected_bezirk()$bezirk[[1]]
     
     if (input$mode_1 == "cycling-regular") {
-      access_pct <- selected_bezirk()$cycle_not_within_20_pct
+      access_pct <- selected_bezirk()$cycle_not_within_20_pct[[1]]
       access_label <- "Residents over 20 min by bicycle"
     } else {
-      access_pct <- selected_bezirk()$walk_not_within_20_pct
+      access_pct <- selected_bezirk()$walk_not_within_20_pct[[1]]
       access_label <- "Residents over 20 min on foot"
     }
     
