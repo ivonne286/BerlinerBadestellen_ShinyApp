@@ -76,6 +76,18 @@ ui <- fluidPage(
 # ─────────────────────────────────────────────────────────
 server <- function(input, output, session) {
   
+  # ── TEST: alle Click-Inputs ausgeben ─────────────────────
+  # activate this code whenever needed
+  # observe({
+  #   clicks <- reactiveValuesToList(input)
+  #   clicks <- clicks[grepl("click", names(clicks), ignore.case = TRUE)]
+  #   # nur ausgeben, wenn ein Click-Input tatsächlich einen Wert hat
+  #   has_val <- vapply(clicks, function(x) !is.null(x) && length(x) > 0, logical(1))
+  #   if (any(has_val)) {
+  #     print(clicks[has_val])
+  #   }
+  # })
+
   # ─────────────────────────────────────────────────────────
   # SIDEBARS CHANGING DEPENDING ON MAP
   # ─────────────────────────────────────────────────────────
@@ -110,22 +122,25 @@ server <- function(input, output, session) {
       
       tagList(
         
-        h4("Berlin Ortsteile: Find Title"),
+        h4("Berliner Ortsteile und Badestellen"),
         hr(),
-        h5("Information"),
-        p("Select something"),
+          p("Wähle Ortsteil oder Badestelle auf der Karte und erfahre mehr."),
         hr(),
-        selectInput(
-          inputId = "mode_2",
-          label = "Travel mode:",
-          choices = c(
-            "Cycling" = "cycling-regular",
-            "Walking" = "foot-walking"
-          ),
-          selected = "cycling-regular"
-        ),
+            selectInput(
+              inputId = "mode_2",
+              label = "Travel mode:",
+              choices = c(
+                "Cycling" = "cycling-regular",
+                "Walking" = "foot-walking"
+              ),
+              selected = "cycling-regular"
+            ),
         hr(),
+        h3("Informationen zum gewählten Ortsteil"),
         uiOutput("selected_ortsteil_info"),
+        hr(),
+        h3("Informationen zur gewählten Badestellen"),
+        uiOutput("selected_lake_info"),
         hr(),
         
         
@@ -329,7 +344,7 @@ server <- function(input, output, session) {
     
     # ── 1. DEFINE VARIABLES DEPENDING ON TRAVEL MODE ─
     
-    if (input$mode_1 == "cycling-regular") {
+    if (input$mode_2 == "cycling-regular") {
       over_20_pct <- "cycle_not_within_20_pct"
       within_20_pct <- "cycle_within_20_pct"
       fill_values <- c("#54FF9F", "#2E8B57")
@@ -346,6 +361,7 @@ server <- function(input, output, session) {
     }
     
     bezirksgrenzen <- shiny_bezirke
+    lakes <- filter(shiny_lakes, mode == input$mode_2)
     
     
     
@@ -397,11 +413,16 @@ server <- function(input, output, session) {
       ) +
       
       tm_shape(bezirksgrenzen) +
-      tm_polygons(
-        col = "black",
-        fill_alpha = 0,
-        lwd = 1.5
-      ) +
+        tm_borders("#2F4F4F", lwd = 2) +
+      
+      tm_shape(lakes) + 
+        tm_bubbles(
+          id = "lake_name",
+          fill = "#00BFFF",
+          hover = "lake_name",
+        ) +
+      
+      
       
       tm_title(map_title) +
       
@@ -453,6 +474,32 @@ server <- function(input, output, session) {
   })
   
   
+  # Lake
+  selected_lake <- reactive({
+    req(input$ortsteile_map_marker_click$id)
+    req(input$mode_2)
+    
+    clicked_lake <- input$ortsteile_map_marker_click$id
+    
+    # tmap replaces every non-alphanumeric char (spaces, commas) with underscores;
+    # reverse that by matching against the encoded lake names
+    clicked_lake <- shiny_lakes$lake_name[
+      gsub("[^[:alnum:]]", "_", shiny_lakes$lake_name) == clicked_lake
+    ]
+    
+    shiny_lakes |>
+      filter(lake_name == clicked_lake, mode == input$mode_2) |>
+      mutate(
+        url_html = paste0(
+          '<a href="', link, '" ',
+          'target="_blank" rel="noopener noreferrer">',
+          'Details →',
+          '</a>'
+        )
+      )
+  })
+  
+  
   
   # ── Reactive Output ──
   
@@ -500,6 +547,23 @@ server <- function(input, output, session) {
       h4(ortsteil_name),
       h2(paste0(access_pct, "%")),
       p(access_label)
+    )
+    
+  })
+  
+  
+  # Lake
+  output$selected_lake_info <- renderUI({
+    
+    req(input$ortsteile_map_marker_click$id)
+    req(input$mode_2)
+    
+    lake <- selected_lake()
+    
+    div(
+      h4(lake$lake_name[[1]]),
+      h5(lake$rank_label[[1]]),
+      HTML(lake$url_html[[1]])
     )
     
   })
