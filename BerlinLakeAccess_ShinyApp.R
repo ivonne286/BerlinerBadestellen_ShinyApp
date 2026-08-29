@@ -12,58 +12,58 @@ tmap_mode("view")
 # USER INTERFACE UI
 # ─────────────────────────────────────────────────────────
 ui <- fluidPage(
-  
-  # ─────────────────────────────────────────────────────────
-  # App title
-  # ─────────────────────────────────────────────────────────
-  
+
+  # ── App title ─────────────────────────────────────────
   div(
     h1("Bathing Sites in Berlin"),
     h4("Unequal Access and Potential Demand")
   ),
-  
 
-  # ─────────────────────────────────────────────────────────
-  # Main layout
-  # ─────────────────────────────────────────────────────────
-  
+  # ── Shared travel mode switch (above the map area) ─────
+  radioButtons(
+    inputId = "mode",
+    label = "Travel mode:",
+    choiceNames = list(
+      tagList(icon("bicycle"), " Cycling"),
+      tagList(icon("person-walking"), " Walking")
+    ),
+    choiceValues = c("cycling-regular", "foot-walking"),
+    selected = "cycling-regular",
+    inline = TRUE
+  ),
+
+  # ── Main layout: sidebar + maps ───────────────────────
   sidebarLayout(
-    
-    # ── Sidebar STATISTICS WHATEVER─────────────────────────
-    
     sidebarPanel(
       width = 3,
-      uiOutput("sidebar_content")
+      # map1 sidebar: selected Ortsteil
+      conditionalPanel(
+        condition = "input.map_tab == 'map1'",
+        uiOutput("sidebar_content")
+      ),
+      # map2 sidebar: population within iso-rings
+      conditionalPanel(
+        condition = "input.map_tab == 'map2'",
+        uiOutput("iso_sidebar")
+      )
     ),
-    
-    
-    # ── Main content MAPS ───────────────────────────────────
-    
     mainPanel(
       width = 9,
-      
       tabsetPanel(
         id = "map_tab",
-        
-        # Tab 1 Bezirke
+
+        # Tab 1: Einwohnerdichte & Besuchsdruck
         tabPanel(
-          title = "Berlin Districts",
+          title = "Einwohnerdichte & Besuchsdruck",
           value = "map1",
-          tmapOutput("bezirke_map", height="800px")
+          tmapOutput("density_map", height = "800px")
         ),
-        
-        # Tab 2 Ortsteile
+
+        # Tab 2: Iso-Rings
         tabPanel(
-          title = "Berlin Ortsteile",
+          title = "Iso-Rings",
           value = "map2",
-          tmapOutput("ortsteile_map", height="800px")
-        ),
-        
-        # Tab 3 Bathing Sites
-        tabPanel(
-          title = "Bathing Sites",
-          value = "map3",
-          tmapOutput("lake_map", height="800px"),
+          tmapOutput("iso_map", height = "800px")
         )
       )
     )
@@ -75,508 +75,305 @@ ui <- fluidPage(
 # SERVER
 # ─────────────────────────────────────────────────────────
 server <- function(input, output, session) {
-  
-  # ── TEST: alle Click-Inputs ausgeben ─────────────────────
-  # activate this code whenever needed
-  # observe({
-  #   clicks <- reactiveValuesToList(input)
-  #   clicks <- clicks[grepl("click", names(clicks), ignore.case = TRUE)]
-  #   # nur ausgeben, wenn ein Click-Input tatsächlich einen Wert hat
-  #   has_val <- vapply(clicks, function(x) !is.null(x) && length(x) > 0, logical(1))
-  #   if (any(has_val)) {
-  #     print(clicks[has_val])
-  #   }
-  # })
 
-  # ─────────────────────────────────────────────────────────
-  # SIDEBARS CHANGING DEPENDING ON MAP
-  # ─────────────────────────────────────────────────────────
-  
-  output$sidebar_content <- renderUI({
-    
-    if (input$map_tab == "map1") {
-      
-      tagList(
-        
-        h4("Berlin Districts: Find Title"),
-        hr(),
-        h5("Information"),
-        p("Select a Travel mode and click a district on the map."),
-        hr(),
-        selectInput(
-          inputId = "mode_1",
-          label = "Travel mode:",
-          choices = c(
-            "Cycling" = "cycling-regular",
-            "Walking" = "foot-walking"
-          ),
-          selected = "cycling-regular"
-        ),
-        hr(),
-        uiOutput("selected_bezirk_info"),
-        hr(),
-        
-      )
-      
-    } else if (input$map_tab == "map2") {
-      
-      tagList(
-        
-        h4("Berliner Ortsteile und Badestellen"),
-        hr(),
-          p("Wähle Ortsteil oder Badestelle auf der Karte und erfahre mehr."),
-        hr(),
-            selectInput(
-              inputId = "mode_2",
-              label = "Travel mode:",
-              choices = c(
-                "Cycling" = "cycling-regular",
-                "Walking" = "foot-walking"
-              ),
-              selected = "cycling-regular"
-            ),
-        hr(),
-        h3("Informationen zum gewählten Ortsteil"),
-        uiOutput("selected_ortsteil_info"),
-        hr(),
-        h3("Informationen zur gewählten Badestellen"),
-        uiOutput("selected_lake_info"),
-        hr(),
-        
-        
-      )
-      
-    } else if (input$map_tab == "map3") {
-      
-      tagList(
-        
-        h4("Bathing Sites Ranking"),
-        p("Lake rankings reflect potential visitor pressure based on local population, walking or cycling travel time, and competition from other accessible lakes."),
-        p("Rank 1 indicates the highest potential visitor pressure, not the best or most desirable lake."),
-        hr(),
-        selectInput(
-          inputId = "mode_3",
-          label = "Travel mode:",
-          choices = c(
-            "Cycling" = "cycling-regular",
-            "Walking" = "foot-walking"
-          ),
-          selected = "cycling-regular"
-        )
-        
-      )
-    }
-  })
-  
-  
-  # ─────────────────────────────────────────────────────────
-  # MAP RENDERING
-  # ─────────────────────────────────────────────────────────
-  
-  
-    # ────────────────────────
-    # Lakes
-    # ────────────────────────
-  output$lake_map <- renderTmap({
-    
-    req(input$mode_3)
-    
-    # get iso and its color depening on travel mode
-    if (input$mode_3 == "cycling-regular") {
-      iso <- shiny_iso_cycle_20
-      iso_fill <- "darkseagreen"
-    } else {
-      iso <- shiny_iso_walk_20
-      iso_fill <- "khaki"
-    }
-    
-    # prepare lakes layer
-    lakes <- shiny_lakes |>
-      # =inputID
-      filter(mode == input$mode_3) |> 
-      # popup html for links
-      mutate(
-        rank_visual = max(rank, na.rm = TRUE) - rank + 1,
-        url_html = paste0(
-          '<span style="padding-left: 10px;">',
-          '<a href="', link, '" ',
-          'target="_blank" rel="noopener noreferrer">',
-          'Details →',
-          '</a>',
-          '</span>'
-        )
-      )
-    
-    # lakes ranking reverse for visualisation in scale
-    n_ranked <- max(lakes$rank_visual, na.rm = TRUE)
-    
-    # map
-    tm_basemap("CartoDB.Positron") +
-      
-      tm_shape(iso) +
+  # ────────────────────────
+  # Tab 1 Map: Einwohnerdichte & Besuchsdruck
+  # ────────────────────────
+  output$density_map <- renderTmap({
+
+    req(input$mode)
+
+    # lake ranking / bubble size depends on travel mode
+    lakes <- shiny_lakes |> filter(mode == input$mode)
+
+    tm_basemap("CartoDB.PositronNoLabels") +
+
+      # Basis - Heatmap
+      tm_shape(shiny_ew_density_raster) +
+      tm_raster(
+        col.scale = tm_scale_continuous_sqrt(values = "yl_or_rd"),
+        col_alpha = 0.8,
+        col.legend = tm_legend(title = "Einw./ha")
+      ) +
+
+      # Wasser
+      tm_shape(shiny_water_background) +
       tm_polygons(
-        fill = iso_fill,
-        fill_alpha = 0.25,
+        fill = "turquoise3",
+        fill_alpha = 0.8,
         lwd = 0
       ) +
-      
-      tm_shape(lakes) +
-      tm_bubbles(
-        size = tm_const(),
-        
-        fill = "rank_visual",
-        fill_alpha = 0.8,
-        fill.scale = tm_scale_continuous(
-          values = c("#B2EBF2", "#006064"),
-          ticks = c(1, n_ranked),
-          labels = c("Lower", "Higher")
-        ),
-        fill.legend = tm_legend(
-          title = "Potential visitor pressure"
-        ),
-        col = NA,
-        
-        hover = "lake_name",
+
+      # Ortsteile
+      tm_shape(shiny_ortsteile) +
+      tm_polygons(
+        fill = NULL,
+        col = "indianred1",
+        lwd = 0.75,
+        id = "ortsteil",
+        hover = "ortsteil",
         popup = tm_popup(
           vars = c(
-            "Rank" = "rank_label",
-            "More info" = "url_html"
-          ),
-          title = "lake_name",
-          format = tm_label_format(
-            html.escape = FALSE
+            "Bezirk" = "bezirk",
+            "Ortsteil" = "ortsteil"
           )
         )
       ) +
-      
-      tm_view(
-        set_view = c(13.405, 52.52, 10)
-      )
-    
-  })
-  
-  
-  
-    # ────────────────────────
-    # Bezirke
-    # ────────────────────────
-  
-  output$bezirke_map <- renderTmap({
-    
-    req(input$mode_1)
-    
-    # ── 1. DEFINE VARIABLES DEPENDING ON TRAVEL MODE ─
-    
-    if (input$mode_1 == "cycling-regular") {
-      over_20_pct <- "cycle_not_within_20_pct"
-      within_20_pct <- "cycle_within_20_pct"
-      fill_values <- c("#54FF9F", "#2E8B57")
-      legend_title <- "Resident share over 20 min — Cycling"
-      map_title <- "Berlin Districts: Share of residents more than 20 minutes from an official bathing site - Cycling"
-    } else {
-      over_20_pct <- "walk_not_within_20_pct"
-      within_20_pct <- "walk_within_20_pct"
-      fill_values <- c("khaki2", "khaki4")
-      legend_title <- "Resident share over 20 min — Walking"
-      map_title <- "Berlin Districts: Share of residents more than 20 minutes from an official bathing site - Walking"
-    }
-    
-    
-    # ── 2. DEFINE POPUP VARIABLES AND STYLE ──
-    
-    popup_data <- shiny_bezirke |>
-      mutate(
-        within_20_label = paste0(.data[[within_20_pct]], "%"),
-        over_20_label = paste0(.data[[over_20_pct]], "%")
-      )
-    
-    # ── 3. MAP ──
-    
-    tm_basemap("CartoDB.Positron") +
-      
-      tm_shape(popup_data) +
-      
-      tm_polygons(
-        
-        fill = over_20_pct,
-        fill.scale = tm_scale_continuous(
-          values = fill_values,
-          ticks = c(0, 25, 50, 75, 100),
-          labels = c("0%", "25%", "50%", "75%", "100%")
-        ),
-        fill.legend = tm_legend(
-          title = legend_title
-        ),
-        fill_alpha = 0.8,
-        col = "white",
-        lwd = 1,
-        
-        id = "bezirk",
-        hover = "bezirk",
-        
+
+      # Bezirke
+      tm_shape(shiny_bezirke) +
+      tm_borders(col = "darkslategrey", lwd = 1) +
+
+      # Lakes
+      tm_shape(lakes) +
+      tm_bubbles(
+        size = "gravity_visual",
+        fill = "cyan2",
+        fill_alpha = 0.9,
+        col = "darkslategrey",
+        lwd = 2,
         popup = tm_popup(
           vars = c(
-            "Population" = "pop_total",
-            "Population density" = "pop_density",
-            "Bathing sites in district" = "lake_count",
-            "Resident share within 20 min" = "within_20_label",
-            "Resident share over 20 min" = "over_20_label"
+            "Lake" = "lake_name",
+            "Rank" = "rank_label",
+            "Details" = "link_html"
           ),
-          title = "bezirk"
+          format = list(
+            link_html = tm_label_format(html.escape = FALSE)
+          )
         )
-        
       ) +
-      
-      tm_title(map_title) +
-      
-      tm_view(set_view = c(13.405, 52.52, 10))
-    
+
+      # Border
+      tm_shape(shiny_berlin_boundary) +
+      tm_borders(col = "darkslategrey", lwd = 1.5) +
+
+      # Subtitle und Titel
+      # tm_title_in("EW-Dichte-Raster: 100x100m, Berlin 2025") +
+      tm_title("Einwohnerdichte & Besuchsdruck auf Seen")
   })
-  
-  
-    # ────────────────────────
-    # Ortsteile
-    # ────────────────────────
-  
-  output$ortsteile_map <- renderTmap({
-    
-    req(input$mode_2)
-    
-    # ── 1. DEFINE VARIABLES DEPENDING ON TRAVEL MODE ─
-    
-    if (input$mode_2 == "cycling-regular") {
-      over_20_pct <- "cycle_not_within_20_pct"
-      within_20_pct <- "cycle_within_20_pct"
-      fill_values <- c("#54FF9F", "#2E8B57")
-      legend_title <- "Resident share over 20 min — Cycling"
-      map_title <- "Berlin Ortsteile: Share of residents more than 20 minutes from an official bathing site - Cycling"
-      
-    } else {
-      over_20_pct <- "walk_not_within_20_pct"
-      within_20_pct <- "walk_within_20_pct"
-      fill_values <- c("khaki2", "khaki4")
-      legend_title <- "Resident share over 20 min — Walking"
-      map_title <- "Berlin Ortsteile: Share of residents more than 20 minutes from an official bathing site - Walking"
-      
-    }
-    
-    bezirksgrenzen <- shiny_bezirke
-    lakes <- filter(shiny_lakes, mode == input$mode_2)
-    
-    
-    
-    # ── 2. DEFINE POPUP VARIABLES AND STYLE ──
-    
-    popup_data <- shiny_ortsteile |>
-      mutate(
-        within_20_label = paste0(.data[[within_20_pct]], "%"),
-        over_20_label = paste0(.data[[over_20_pct]], "%")
-      )
-    
-    
-    # ── 3. MAP ──
-    
-    tm_basemap("CartoDB.Positron") +
-      
-      tm_shape(popup_data) +
-      tm_polygons(
-        
-        fill = over_20_pct,
-        fill.scale = tm_scale_continuous(
-          values = fill_values,
-          ticks = c(0, 25, 50, 75, 100),
-          labels = c("0%", "25%", "50%", "75%", "100%")
-        ),
-        fill.legend = tm_legend(
-          title = legend_title
-        ),
-        fill_alpha = 0.75,
-        
-        col = "white",
-        col_alpha = 0.5,
-        lwd = 1,
-        
-        id = "ortsteil",
-        hover = "ortsteil",
-        
-        popup = tm_popup(
-          vars = c(
-            "Population" = "pop_total",
-            "Population density" = "pop_density",
-            "Bathing sites in Ortsteil" = "lake_count",
-            "Resident share within 20 min" = "within_20_label",
-            "Resident share over 20 min" = "over_20_label"
-          ),
-          title = "ortsteil"
-        )
-        
-      ) +
-      
-      tm_shape(bezirksgrenzen) +
-        tm_borders("#2F4F4F", lwd = 2) +
-      
-      tm_shape(lakes) + 
-        tm_bubbles(
-          id = "lake_name",
-          fill = "#00BFFF",
-          hover = "lake_name",
-        ) +
-      
-      
-      
-      tm_title(map_title) +
-      
-      tm_view(set_view = c(13.405, 52.52, 10))
-  
-    
-    
-  })
-  
-  # ─────────────────────────────────────────────────────────
-  # REACTIVE ELEMENTS
-  # ─────────────────────────────────────────────────────────
-  
-  # ── Selections ──
-  
-  # Bezirk
-  selected_bezirk <- reactive({
-    
-    req(input$bezirke_map_shape_click$id)
-    
-    clicked_bezirk <- input$bezirke_map_shape_click$id
-    
-    # tmap replaces hyphens with underscores in the feature ID; reverse that
-    # by matching against the known bezirk names (none of which contain underscores)
-    clicked_bezirk <- shiny_bezirke$bezirk[
-      gsub("-", "_", shiny_bezirke$bezirk) == clicked_bezirk
-    ]
-    
-    shiny_bezirke |>
-      filter(bezirk == clicked_bezirk)
-  })
-  
-  
-  # Ortsteil
+
+
+  # ────────────────────────
+  # Tab 1 Sidebar: selected Ortsteil
+  # ────────────────────────
   selected_ortsteil <- reactive({
-    
-    req(input$ortsteile_map_shape_click$id)
-    
-    clicked_ortsteil <- input$ortsteile_map_shape_click$id
-    
-    # tmap replaces hyphens with underscores in the feature ID; reverse that
-    # by matching against the known ortsteil names (none of which contain underscores)
-    clicked_ortsteil <- shiny_ortsteile$ortsteil[
-      gsub("-", "_", shiny_ortsteile$ortsteil) == clicked_ortsteil
+    req(input$density_map_shape_click$id)
+
+    clicked <- input$density_map_shape_click$id
+
+    # tmap replaces every non-alphanumeric char (spaces, hyphens) with
+    # underscores in the feature ID; reverse that
+    clicked <- shiny_ortsteile$ortsteil[
+      gsub("[^[:alnum:]]", "_", shiny_ortsteile$ortsteil) == clicked
     ]
-    
+
     shiny_ortsteile |>
-      filter(ortsteil == clicked_ortsteil)
+      filter(ortsteil == clicked)
   })
-  
-  
-  # Lake
-  selected_lake <- reactive({
-    req(input$ortsteile_map_marker_click$id)
-    req(input$mode_2)
-    
-    clicked_lake <- input$ortsteile_map_marker_click$id
-    
-    # tmap replaces every non-alphanumeric char (spaces, commas) with underscores;
-    # reverse that by matching against the encoded lake names
-    clicked_lake <- shiny_lakes$lake_name[
-      gsub("[^[:alnum:]]", "_", shiny_lakes$lake_name) == clicked_lake
-    ]
-    
-    shiny_lakes |>
-      filter(lake_name == clicked_lake, mode == input$mode_2) |>
-      mutate(
-        url_html = paste0(
-          '<a href="', link, '" ',
-          'target="_blank" rel="noopener noreferrer">',
-          'Details →',
-          '</a>'
+
+  # map1 sidebar: selected Ortsteil
+  output$sidebar_content <- renderUI({
+
+    req(selected_ortsteil())
+    ot <- selected_ortsteil()
+
+    # lakes in this Ortsteil (for the current travel mode)
+    lakes_in_ot <- shiny_lakes |>
+      filter(ortsteil == ot$ortsteil[[1]], mode == input$mode) |>
+      pull(lake_name) |>
+      unique()
+
+    # access share depending on travel mode
+    if (input$mode == "cycling-regular") {
+      access_pct <- ot$cycle_within_20_pct[[1]]
+      mode_label <- "cycling"
+    } else {
+      access_pct <- ot$walk_within_20_pct[[1]]
+      mode_label <- "walking"
+    }
+
+    tagList(
+      h5("Bezirk"),
+      h4(ot$bezirk[[1]]),
+      hr(),
+      h5("Ortsteil"),
+      h2(ot$ortsteil[[1]]),
+      hr(),
+      
+      h5("Einwohnerzahl"),
+      div(style = "font-size: 28px; font-weight: bold; color: #E34447;",
+          paste0(format(round(ot$pop_total[[1]]), big.mark = ".", decimal.mark = ","), " EW")),
+      hr(),
+      
+      h5("Größe"),
+      div(style = "font-size: 28px; font-weight: bold; color: #E34447;",
+          paste0(format(round(ot$area_km2[[1]], 1), big.mark = ".", decimal.mark = ","), " km²")),
+      hr(),
+      
+      h5("Einwohnerdichte"),
+      div(style = "font-size: 28px; font-weight: bold; color: #E34447;",
+      paste0(format(round(ot$pop_density[[1]] / 100, 1), big.mark = ".", decimal.mark = ","), " EW/ha")),
+      hr(),
+      
+      h5("Badestellen in diesem Ortsteil"),
+      if (length(lakes_in_ot) == 0) {
+        div(
+          style = "font-size: 20px; font-weight: bold; color: #00868B;",
+          "- keine -"
         )
+      } else {
+        tags$ul(
+          lapply(lakes_in_ot, function(lk) {
+            tags$li(
+              style = "font-size: 20px; font-weight: bold; color: #00868B;",
+              lk
+            )
+          })
+        )
+      },
+      hr(),
+      
+      h5("Badestellen-Zugang",
+         icon(if (input$mode == "cycling-regular") "bicycle" else "person-walking")),
+      div(style = "font-size: 20px; font-weight: bold; color: #00868B;",
+      paste0(access_pct, "% der EW von ", ot$ortsteil[[1]],
+             " können innerhalb von maximal 20 Minuten eine Badestelle erreichen"
+      ))
+    )
+  })
+
+
+  # ────────────────────────
+  # Tab 2 Map: Iso-Rings
+  # ────────────────────────
+  output$iso_map <- renderTmap({
+
+    req(input$mode)
+
+    # rings and lakes depend on travel mode
+    rings <- shiny_iso_rings |> filter(mode == input$mode)
+    lakes <- shiny_lakes |> filter(mode == input$mode)
+
+    if (input$mode == "cycling-regular") {
+      ring_colors <- c(
+        "up to 5 min" = "#8C4BBE",
+        "up to 10 min" = "#BC96D9",
+        "up to 20 min" = "#D9C3E9"
       )
-  })
-  
-  
-  
-  # ── Reactive Output ──
-  
-  # Bezirk
-  output$selected_bezirk_info <- renderUI({
-    
-    req(input$bezirke_map_shape_click$id)
-    req(input$mode_1)
-    
-    bezirk_name <- selected_bezirk()$bezirk[[1]]
-    
-    if (input$mode_1 == "cycling-regular") {
-      access_pct <- selected_bezirk()$cycle_not_within_20_pct[[1]]
-      access_label <- "Residents over 20 min by bicycle"
+      legend_title <- "Max. minutes to a lake - Cycling"
     } else {
-      access_pct <- selected_bezirk()$walk_not_within_20_pct[[1]]
-      access_label <- "Residents over 20 min on foot"
+      ring_colors <- c(
+        "up to 5 min" = "#18C93E",
+        "up to 10 min" = "#5BEC7A",
+        "up to 20 min" = "#A4F4B5"
+      )
+      legend_title <- "Max. minutes to a lake - Walking"
     }
-    
-    div(
-      h4(bezirk_name),
-      h2(paste0(access_pct, "%")),
-      p(access_label)
-    )
-    
+
+    tm_basemap("CartoDB.Positron") +
+
+      # rings
+      tm_shape(rings) +
+      tm_polygons(
+        fill = "minutes",
+        fill.legend = tm_legend(title = legend_title),
+        fill.scale = tm_scale_categorical(values = ring_colors),
+        fill_alpha = 0.7,
+        lwd = 0,
+        popup = FALSE
+      ) +
+
+      # water background
+      tm_shape(shiny_water_background) +
+      tm_polygons(
+        fill = "turquoise3",
+        fill_alpha = 0.9,
+        lwd = 0
+      ) +
+      tm_layout(frame = FALSE) +
+
+      # border
+      tm_shape(shiny_berlin_boundary) +
+      tm_borders(
+        col = "darkslategrey",
+        lwd = 2
+      ) +
+
+      # lakes
+      tm_shape(lakes) +
+      tm_symbols(
+        fill = "cyan2",
+        col = "darkslategrey",
+        size = 0.7,
+        lwd = 1.5,
+        popup = tm_popup(
+          vars = c(
+            "Lake" = "lake_name",
+            "Rank" = "rank_label",
+            "Details" = "link_html"
+          ),
+          format = list(
+            link_html = tm_label_format(html.escape = FALSE)
+          )
+        )
+      ) +
+      tm_text(
+        text = "lake_name",
+        size = 0.7,
+        col = "darkslategrey",
+        options = opt_tm_text(just = "center"),
+        xmod = 0,
+        ymod = 0.1
+      ) +
+      
+      # title
+      tm_title("Erreichbarkeit der Berliner Badestellen") +
+
+      # legend
+      tm_layout(legend.outside = TRUE)
   })
-  
-  # Ortsteil
-  output$selected_ortsteil_info <- renderUI({
-    
-    req(input$ortsteile_map_shape_click$id)
-    req(input$mode_2)
-    
-    ortsteil_name <- selected_ortsteil()$ortsteil[[1]]
-    
-    if (input$mode_2 == "cycling-regular") {
-      access_pct <- selected_ortsteil()$cycle_not_within_20_pct[[1]]
-      access_label <- "Residents over 20 min by bicycle"
-    } else {
-      access_pct <- selected_ortsteil()$walk_not_within_20_pct[[1]]
-      access_label <- "Residents over 20 min on foot"
-    }
-    
-    div(
-      h4(ortsteil_name),
-      h2(paste0(access_pct, "%")),
-      p(access_label)
+
+  # ────────────────────────
+  # Tab 2 Sidebar Ring Info
+  # ────────────────────────
+  output$iso_sidebar <- renderUI({
+
+    req(input$mode)
+
+    rings <- shiny_iso_rings |> filter(mode == input$mode)
+    pop5  <- rings$population[rings$minutes == "up to 5 min"]
+    pop10 <- rings$population[rings$minutes == "up to 10 min"]
+    pct5  <- rings$population_pct[rings$minutes == "up to 5 min"]
+    pct10 <- rings$population_pct[rings$minutes == "up to 10 min"]
+
+    tagList(
+      h3(
+        "Wo wohnen die Berliner*innen im Bezug auf die Erreichbarkeit von Badestellen?",
+        icon(if (input$mode == "cycling-regular") "bicycle" else "person-walking")
+      ),
+      hr(),
+      p("Innerhalb einer max-5-Minuten-Zone:"),
+      div(
+        style = "font-size: 28px; font-weight: bold; color: #00868B;",
+        paste0(format(pop5, big.mark = ".", decimal.mark = ","), " Einwohner")
+      ),
+      p(paste0(
+        "(", format(round(pct5, 1), big.mark = ".", decimal.mark = ","),
+        " % der Berliner*innen)"
+      )),
+      hr(),
+      p("Innerhalb einer max-10-Minuten-Zone:"),
+      div(
+        style = "font-size: 28px; font-weight: bold; color: #00868B;",
+        paste0(format(pop10, big.mark = ".", decimal.mark = ","), " Einwohner")
+      ),
+      p(paste0(
+        "(", format(round(pct10, 1), big.mark = ".", decimal.mark = ","),
+        " % der Berliner*innen)"
+      ))
     )
-    
   })
-  
-  
-  # Lake
-  output$selected_lake_info <- renderUI({
-    
-    req(input$ortsteile_map_marker_click$id)
-    req(input$mode_2)
-    
-    lake <- selected_lake()
-    
-    div(
-      h4(lake$lake_name[[1]]),
-      h5(lake$rank_label[[1]]),
-      HTML(lake$url_html[[1]])
-    )
-    
-  })
-  
-  
 }
 
 shinyApp(ui, server)
-
-
-
-
-
-
-
-
