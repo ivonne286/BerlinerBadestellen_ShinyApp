@@ -1,8 +1,7 @@
 .Rproj.user/
 .Rhistory
 .Ruserdata
-
-
-
+.RData
+**/*.Rdata
 
 .posit/assistant
