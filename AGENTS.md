@@ -24,5 +24,12 @@
 - Editor-Puffer vs. Disk: Nach Assistant-Edits kann der Editor-Puffer veraltet sein (Symptom: widersprüchliche Meldungen wie "String not found" trotz vorhandener Zeile). Disk-Stand verifizieren, z. B. mit parse("BerlinLakeAccess_ShinyApp.R"). Vor manuellen Änderungen im Editor: Datei neu laden (File -> Reload from Disk), sonst überschreibt Speichern die Fixes.
 - Windows-Datei-Sperre: Läuft die Shiny-App, hält sie BerlinLakeAccess_ShinyApp.R gesperrt – Änderungen an der Datei schlägen dann fehl oder korrumpieren sie (Symptom: "The process cannot access the file ..."). Deshalb: App stoppen, bevor Änderungen beginnen; Assistant prüft die Schreibbarkeit der Datei vorab.
 
+## Git & Line-Endings (LF-Setup)
+- Repo ist vollständig auf LF: `.gitattributes` im Root mit `* text=auto eol=lf` (plus `*.RData`, `*.rds`, `*.gpkg`, `*.shp` usw. als `binary`); committet in d31b093.
+- Hintergrund: Git-for-Windows-Standard `core.autocrlf=true` verursachte den CRLF-Ärger. Repo-lokal ist jetzt `core.autocrlf=false` gesetzt; maßgeblich ist die `.gitattributes`.
+- RStudio-Einstellung für neue Dateien: Tools -> Global Options -> Code -> Saving -> Line end conversion = "Posix (LF)".
+- git hat keine konfigurierte Identity (user.name/user.email leer). Commits aus dem Code daher mit `-c user.name=ivonne286 -c user.email=ivonne.giske@posteo.net` (Identität des letzten Commits) oder Commit im RStudio-Git-Pane.
+- Falls git eine Textdatei als "binary" behandelt: auf doppelte CRs (`\r\r\n`) prüfen – war bei AGENTS.md der Fall und ist bereinigt (bedad9f).
+
 ## Regeln
 - Keine Dateien ohne vorherige Freigabe ändern – vor jeder Änderung nachfragen.
