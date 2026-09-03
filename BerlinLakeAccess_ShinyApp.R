@@ -62,7 +62,7 @@ ui <- fluidPage(
     .title-rule {
       height: 3px; width: 280px; margin: 14px auto 0 auto; border: 0;
       background: linear-gradient(90deg, #00868B, #EE6363);
-      border-radius: 2px;
+      border-radius: 4px;
     }
 
     details summary { cursor: pointer; color: #006366; font-size: 14px; }
@@ -73,7 +73,7 @@ ui <- fluidPage(
   div(
     class = "app-title",
     h1(icon("umbrella-beach"), "Berliner Badestellen"),
-    h4("Thematische Karten zur Analyse der Erreichbarkeit."),
+    h4("Thematische Karten zur Erreichbarkeit"),
     div(class = "title-rule")
   ),
 
@@ -508,8 +508,8 @@ server <- function(input, output, session) {
         type = "symbol",
         title = "Badestellen",
         labels = paste0(
-          "Kreisgr\u00f6\u00dfe = potenzieller Druck auf die Badestelle\n",
-          "(Bev\u00f6lkerung im Umfeld, Konkurrenz, Fahrzeit \u2013 Details siehe Metadaten)"
+          "Kreisgröße = potenzieller Druck auf die Badestelle\n",
+          "(Bevölkerung im Umfeld, Konkurrenz, Fahrzeit – Details siehe Metadaten)"
         ),
         fill = "cyan2",
         border_col = "darkslategrey",
@@ -735,10 +735,10 @@ server <- function(input, output, session) {
           emptyTable = "Keine Daten",
           search = "Suchen:",
           lengthMenu = "Zeige _MENU_ Ortsteile",
-          info = "Zeige _START_\u2013_END_ von _TOTAL_ Ortsteilen",
+          info = "Zeige _START_–_END_ von _TOTAL_ Ortsteilen",
           infoFiltered = "(gefiltert von _MAX_ Ortsteilen)",
           infoEmpty = "Keine Ortsteile",
-          paginate = list(previous = "Zur\u00fcck", `next` = "Weiter")
+          paginate = list(previous = "Zurück", `next` = "Weiter")
         )
       )
     )
