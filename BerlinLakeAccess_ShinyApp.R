@@ -58,6 +58,8 @@ ui <- fluidPage(
   ),
 
   # ── Shared travel mode switch (above the map area) ─────
+  # Switch affects the map tabs only; the Ortsteil-Tabelle (Challenges +
+  # table) is Fahrrad-based and ignores it.
   radioButtons(
     inputId = "mode",
     label = "Verkehrsmittel:",
@@ -117,6 +119,8 @@ ui <- fluidPage(
           hr(),
           p("Sortieren Sie per Klick auf die Spalten\u00fcberschrift und filtern Sie \u00fcber die Suchfelder.",
             style = "color: #6c757d;"),
+          p("Rundung: Prozentwerte auf 1 Nachkommastelle, EW/ha auf 1, Fl\u00e4che auf 2 \u2013 konsistent mit den Sidebars der Karten.",
+            style = "color: #6c757d; font-size: 13px;"),
           DT::dataTableOutput("ranking_table")
         ),
 
@@ -197,7 +201,7 @@ server <- function(input, output, session) {
       tm_shape(shiny_ortsteile) +
       tm_polygons(
         fill = NULL,
-        col = "indianred1",
+        col = "indianred4",
         lwd = 0.75,
         id = "ortsteil",
         hover = "ortsteil",
@@ -212,7 +216,7 @@ server <- function(input, output, session) {
 
       # Bezirke
       tm_shape(shiny_bezirke) +
-      tm_borders(col = "darkslategrey", lwd = 1) +
+      tm_borders(col = "darkslategrey", lwd = 1.25) +
 
       # Lakes (simple points)
       tm_shape(lakes) +
@@ -567,65 +571,113 @@ server <- function(input, output, session) {
   # ────────────────────────
   output$ranking_sidebar <- renderUI({
 
-    req(input$mode)
-
-    mode_word <- if (input$mode == "cycling-regular") "mit dem Fahrrad" else "zu Fu\u00df"
-    access_col <- if (input$mode == "cycling-regular") "cycle_within_20_pct" else "walk_within_20_pct"
-    pop_no_col <- if (input$mode == "cycling-regular") "pop_cycle_not_within_20" else "pop_walk_not_within_20"
+    # Challenges beziehen sich fix auf Fahrrad – unabhängig vom Karten-Modus
     otd <- shiny_ortsteile |>
       st_drop_geometry() |>
-      select(ortsteil, bezirk, pop_total, pop_density,
-             access = all_of(access_col), pop_no = all_of(pop_no_col))
-
-    # Wüste: kein Zugang, höchste Bevölkerung ohne Zugang
-    worst <- otd |> filter(access == 0)     |> arrange(desc(pop_no))     |> slice_head(n = 1)
-    # Bestversorgt: 100 % Zugang, niedrigste Einwohnerdichte
-    best  <- otd |> filter(access >= 99.95) |> arrange(pop_density)     |> slice_head(n = 1)
+      select(ortsteil, bezirk, pop_total, pop_density, area_km2,
+             access = cycle_within_20_pct, pop_no = pop_cycle_not_within_20)
 
     fmt_pop2 <- function(x) format(round(x), big.mark = ".", decimal.mark = ",")
+    fmt_dens <- function(x) format(round(x / 100, 1), big.mark = ".", decimal.mark = ",")
 
-    challenge_box <- function(icon_name, title, task, border_col, bg_col, nm, detail) {
+    # C1 (Fahrrad): 100 % Zugang, niedrigste Bevölkerungsdichte
+    c1 <- otd |> filter(access >= 99.95) |> arrange(pop_density) |> slice_head(n = 1)
+    # C2 (Fahrrad): 0 % Zugang, meisten EW ohne Zugang
+    c2 <- otd |> filter(access == 0) |> arrange(desc(pop_no)) |> slice_head(n = 1)
+    # C3 (zu Fuß): Anzahl Ortsteile mit (praktisch) 0 % Fuß-Zugang
+    n_walk0 <- sum(shiny_ortsteile$walk_within_20_pct == 0)
+    n_walk0_prac <- sum(round(shiny_ortsteile$walk_within_20_pct, 1) == 0)
+    # C4 (zu Fuß): 100 % Fuß-Zugang, kleinster Ortsteil
+    c4 <- shiny_ortsteile |>
+      st_drop_geometry() |>
+      filter(walk_within_20_pct >= 99.95) |>
+      arrange(area_km2) |>
+      slice_head(n = 1)
+    # C5: Bezirk mit niedrigstem Zugang (Fahrrad + Fuß)
+    c5 <- shiny_ortsteile |>
+      st_drop_geometry() |>
+      group_by(bezirk) |>
+      summarise(
+        pop = sum(pop_total),
+        cycle_pct = 100 * sum(pop_cycle_within_20) / sum(pop_total),
+        walk_pct = 100 * sum(pop_walk_within_20) / sum(pop_total),
+        .groups = "drop"
+      ) |>
+      mutate(reach = cycle_pct + walk_pct) |>
+      arrange(reach, desc(pop)) |>
+      slice_head(n = 1)
+
+    fmt_km2 <- function(x) format(round(x, 1), decimal.mark = ",")
+
+    challenge_box <- function(title, task, col, nm, detail) {
       div(
-        style = paste0("border-left: 5px solid ", border_col,
-                       "; background-color: ", bg_col,
+        style = paste0("border: 2px solid ", col,
                        "; padding: 10px 12px; margin-bottom: 12px; border-radius: 4px;"),
         p(style = "margin-bottom: 4px; color: #00494C;",
-          icon(icon_name), " ", tags$strong(title)),
+          tags$strong(title)),
         p(style = "font-size: 15px; margin-bottom: 6px; color: #00494C;", task),
         tags$details(
-          tags$summary("L\u00f6sung anzeigen"),
+          tags$summary("Lösung anzeigen"),
           div(style = "font-size: 16px; font-weight: bold; color: #00494C;", nm),
           p(style = "font-size: 15px; margin-bottom: 0; color: #00494C;", detail)
         )
       )
     }
 
+    section_hdr <- function(icon_name, label) {
+      h5(style = "color: #00494C; margin-bottom: 8px;",
+         icon(icon_name), " ", tags$strong(label))
+    }
+
     tagList(
-      h4(icon("trophy"), " Deine Challenge"),
+      h4(icon("trophy"), " Deine Challenges"),
       hr(),
-      p("Finden Sie die Extreme selbst \u2013 sortieren und filtern Sie in der Ortsteil-Tabelle dieses Tabs."),
+      p("Finden Sie die Antworten selbst – sortieren und filtern Sie in der Ortsteil-Tabelle dieses Tabs."),
+
+      section_hdr("bicycle", "Fahrrad"),
       challenge_box(
-        "sun",
-        "Challenge 1: Finde die Erreichbarkeits-W\u00fcste",
-        paste0("Welcher Ortsteil hat ", mode_word,
-               " die meisten Einwohner*innen ohne Badestelle in 20 Minuten?"),
-        "#EE6363", "#FDECEC",
-        worst$ortsteil[[1]],
-        paste0("(", worst$bezirk[[1]], "): ",
-               fmt_pop2(worst$pop_no[[1]]), " von ", fmt_pop2(worst$pop_total[[1]]),
-               " EW ohne Zugang")
+        "Challenge 1: Dünn besiedelt & gut versorgt",
+        "Welcher Ortsteil ist besonders dünn besiedelt und außerdem gut mit Badestellen versorgt?",
+        "#D9C3E9",
+        c1$ortsteil[[1]],
+        paste0("(", c1$bezirk[[1]], "): nur ", fmt_dens(c1$pop_density[[1]]), " EW/ha, aber ",
+               round(c1$access[[1]]), " % Fahrrad-Zugang in 20 Min. (",
+               fmt_pop2(c1$pop_total[[1]]), " EW).")
       ),
       challenge_box(
-        "medal",
-        "Challenge 2: Finde den bestversorgten Ortsteil",
-        paste0("Welcher Ortsteil ist am d\u00fcnnsten besiedelt und hat ", mode_word,
-               " trotzdem 100 % Zugang in 20 Minuten?"),
-        "#00868B", "#E1F0F1",
-        best$ortsteil[[1]],
-        paste0("(", best$bezirk[[1]], "): ",
-               fmt_pop2(best$pop_total[[1]]), " EW \u00b7 ",
-               format(round(best$pop_density[[1]] / 100, 1),
-                      big.mark = ".", decimal.mark = ","), " EW/ha")
+        "Challenge 2: Die meisten Menschen ohne Badestelle",
+        "In welchem Ortsteil leben die meisten Menschen ohne erreichbare Badestelle(n) – per Fahrrad innerhalb von maximal 20 Minuten?",
+        "#D9C3E9",
+        c2$ortsteil[[1]],
+        paste0("(", c2$bezirk[[1]], "): ", fmt_pop2(c2$pop_no[[1]]), " von ",
+               fmt_pop2(c2$pop_total[[1]]), " EW ohne Badestelle in 20 Min. (0 % Zugang)")
+      ),
+
+      section_hdr("person-walking", "Zu Fuß"),
+      challenge_box(
+        "Challenge 3: Wie viele Ortsteile ohne Badestelle?",
+        "Für wie viele der 97 Berliner Ortsteile gibt es keine (oder praktisch keine) Badestellen, die in maximal 20 Minuten zu Fuß erreichbar sind?",
+        "#A4F4B5",
+        paste0(n_walk0_prac, " von 97 Ortsteilen"),
+        paste0(n_walk0, " Ortsteile haben exakt 0 %, 2 weitere (Reinickendorf, Fennpfuhl) runden auf 0,0 %.")
+      ),
+      challenge_box(
+        "Challenge 4: Alle können zu Fuß baden",
+        "In welchem Ortsteil können alle Einwohner*innen zu Fuß und in maximal 20 Minuten eine Badestelle erreichen? Was ist das Besondere an diesem Ortsteil?",
+        "#A4F4B5",
+        c4$ortsteil[[1]],
+        paste0("(", c4$bezirk[[1]], "): mit nur ", fmt_km2(c4$area_km2[[1]]),
+               " km² der zweitkleinste Ortsteil Berlins – Badestelle: Strandbad Halensee im angrenzenden Grunewald.")
+      ),
+
+      section_hdr("star", "Zusatzfrage"),
+      challenge_box(
+        "Zusatzfrage: Am wenigsten versorgter Bezirk",
+        "Die Bevölkerung welches Bezirks kann keine oder die wenigsten Badestellen erreichen (zu Fuß und/oder Fahrrad)?",
+        "#FDB269",
+        c5$bezirk[[1]],
+        paste0("0 % Zugang – weder zu Fuß noch mit dem Fahrrad (", fmt_pop2(c5$pop[[1]]),
+               " EW). Kein anderer Bezirk liegt bei beiden Verkehrsmitteln bei 0 %.")
       )
     )
   })
@@ -641,13 +693,14 @@ server <- function(input, output, session) {
         Bezirk = bezirk,
         `EW` = round(pop_total),
         `EW/ha` = round(pop_density / 100, 1),
-        `Badestellen im Ortsteil` = lake_count,
-        `Zugang Fahrrad (% in 20 Min.)` = round(cycle_within_20_pct, 1),
-        `EW ohne Zugang (Fahrrad)` = round(pop_cycle_not_within_20),
-        `Zugang zu Fuß (% in 20 Min.)` = round(walk_within_20_pct, 1),
-        `EW ohne Zugang (zu Fuß)` = round(pop_walk_not_within_20)
+        `Fläche (km²)` = round(area_km2, 2),
+        `Anzahl Badestellen im Ortsteil` = lake_count,
+        `Bevölkerungsanteil in % (mit Fahrrad in max. 20 Min.)` =
+          round(cycle_within_20_pct, 1),
+        `Bevölkerungsanteil in % (zu Fuß in max. 20 Min.)` =
+          round(walk_within_20_pct, 1)
       ) |>
-      arrange(desc(`EW ohne Zugang (Fahrrad)`))
+      arrange(Ortsteil)
 
     DT::datatable(
       ot_rank,
