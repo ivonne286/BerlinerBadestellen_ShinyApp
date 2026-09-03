@@ -54,7 +54,7 @@ ui <- fluidPage(
   # ── App title ─────────────────────────────────────────
   div(
     h1("Berliner Badestellen"),
-    h4("Eine Analyse der räumlichen Verteilung und Erreichbarkeit für die Bevölkerung.")
+    h4("Thematische Karten zur Analyse der Erreichbarkeit.")
   ),
 
   # ── Shared travel mode switch (above the map area) ─────
@@ -287,10 +287,10 @@ server <- function(input, output, session) {
     if (is.null(ot_name)) {
 
       return(tagList(
-        h3("Bev\u00f6lkerungsdichte und Badestellen nach Ortsteilen"),
+        h3("Einwohnerdichte und Erreichbarkeit von Badestellen nach Ortsteilen"),
         hr(),
         p("Klicken Sie auf einen Ortsteil oder eine Badestelle, um Details anzuzeigen."),
-        p("Die Verkehrsmittelauswahl (Fahrrad / Zu Fu\u00df) \u00e4ndert die angezeigten Werte.")
+        p("Die Verkehrsmittelauswahl (Fahrrad / Zu Fuß) ändert die angezeigten Werte.")
       ))
     }
 
@@ -315,53 +315,61 @@ server <- function(input, output, session) {
 
     # sentence depends on the number of reachable bathing sites;
     # only the percentage number is bold + teal
-    pct_span <- tags$span(style = "font-weight: bold; color: #EE6363;",
+    pct_span <- tags$span(style = "font-size: 24px; font-weight: bold; color: #EE6363;",
                           paste0(pct_txt, " %"))
     if (length(reachable) == 0) {
-      reach_sentence <- paste0(
-        "Für die Bevölkerung des Ortsteils ", ot_txt,
-        " ist innerhalb von maximal 20 Minuten keine Badestelle erreichbar."
+      reach_sentence <- tagList(
+        pct_span, tags$br()," Für die Bevölkerung des Ortsteils ", ot_txt,
+        " ist keine Badestelle erreichbar."
       )
     } else if (length(reachable) == 1) {
       reach_sentence <- tagList(
-        "Für ", pct_span, " der Bevölkerung des Ortsteils ", ot_txt,
-        " ist innerhalb von maximal 20 Minuten folgende Badestelle erreichbar:"
+        pct_span, " der Bevölkerung von ", ot_txt,
+        " kann folgende Badestelle erreichen:"
       )
     } else {
       reach_sentence <- tagList(
-        "Für ", pct_span, " der Bevölkerung des Ortsteils ", ot_txt,
-        " ist innerhalb von maximal 20 Minuten mindestens eine der folgenden Badestellen erreichbar:"
+        pct_span, " der Bevölkerung von ", ot_txt,
+        " kann mindestens eine der folgenden Badestellen erreichen:"
       )
     }
 
     tagList(
-      h3("Bevölkerungsdichte und Badestellen nach Ortsteilen"),
+      h3("Einwohnerdichte und Erreichbarkeit von Badestellen nach Ortsteilen"),
       hr(),
-      h5("Bezirk"),
-      h4(ot$bezirk[[1]]),
-      hr(),
+      
       h5("Ortsteil"),
       div(style = "font-size: 28px; font-weight: bold; color: #00868B;",
           ot$ortsteil[[1]]),
-      hr(),
       
-      h5("Einwohnerzahl"),
-      div(style = "font-size: 28px; font-weight: bold; color: #EE6363;",
-          paste0(format(round(ot$pop_total[[1]]), big.mark = ".", decimal.mark = ","), " EW")),
-      hr(),
-      
-      h5("Fläche"),
-      div(style = "font-size: 28px; font-weight: bold; color: #EE6363;",
-          paste0(format(round(ot$area_km2[[1]], 1), big.mark = ".", decimal.mark = ","), " km²")),
+      h5("Bezirk"),
+      div(style = "font-size: 20px; color: #00868B;",
+          ot$bezirk[[1]]),
       hr(),
       
       h5("Einwohnerdichte"),
-      div(style = "font-size: 28px; font-weight: bold; color: #EE6363;",
+      div(style = "font-size: 24px; font-weight: bold; color: #EE6363;",
       paste0(format(round(ot$pop_density[[1]] / 100, 1), big.mark = ".", decimal.mark = ","), " EW/ha")),
+      
+      h5("Einwohnerzahl"),
+      div(style = "font-size: 20px; color: #EE6363;",
+          paste0(format(round(ot$pop_total[[1]]), big.mark = ".", decimal.mark = ","), " EW")),
+      
+      h5("Fläche"),
+      div(style = "font-size: 20px; color: #EE6363;",
+          paste0(format(round(ot$area_km2[[1]], 1), big.mark = ".", decimal.mark = ","), " km²")),
       hr(),
       
-      h5(icon(if (input$mode == "cycling-regular") "bicycle" else "person-walking"),
-         paste0(" Erreichbarkeit ", mode_word)),
+      h5("Badestellen-Erreichbarkeit für die Bevölkerung (anteilig)",
+         tags$br(),
+         icon(if (input$mode == "cycling-regular") "bicycle" else "person-walking"),
+         tags$span(
+           style = "font-size: 0.85em; font-weight: normal; font-style: italic",
+           paste0(" maximal 20 Minuten · ", mode_word)
+         ), 
+         tags$br(),
+      ),
+         
       div(style = "font-size: 20px;", reach_sentence),
       if (length(reachable) > 0) {
         tags$ul(
