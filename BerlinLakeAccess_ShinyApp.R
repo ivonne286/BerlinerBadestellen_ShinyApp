@@ -47,14 +47,34 @@ ui <- fluidPage(
       color: #00494C;
     }
 
+    .app-title { text-align: center; margin-bottom: 8px; }
+    .app-title h1 {
+      color: #006366;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+    .app-title h1 .fas { color: #00868B; margin-right: 10px; }
+    .app-title h4 {
+      color: #6c757d;
+      font-weight: normal;
+      margin-top: 4px;
+    }
+    .title-rule {
+      height: 3px; width: 280px; margin: 14px auto 0 auto; border: 0;
+      background: linear-gradient(90deg, #00868B, #EE6363);
+      border-radius: 2px;
+    }
+
     details summary { cursor: pointer; color: #006366; font-size: 14px; }
     details summary:hover { color: #00494C; }
   ")),
 
   # ── App title ─────────────────────────────────────────
   div(
-    h1("Berliner Badestellen"),
-    h4("Thematische Karten zur Analyse der Erreichbarkeit.")
+    class = "app-title",
+    h1(icon("umbrella-beach"), "Berliner Badestellen"),
+    h4("Thematische Karten zur Analyse der Erreichbarkeit."),
+    div(class = "title-rule")
   ),
 
   # ── Shared travel mode switch (above the map area) ─────
@@ -117,10 +137,8 @@ ui <- fluidPage(
           value = "ranking",
           h3("Alle Ortsteile im Vergleich"),
           hr(),
-          p("Sortieren Sie per Klick auf die Spalten\u00fcberschrift und filtern Sie \u00fcber die Suchfelder.",
-            style = "color: #6c757d;"),
-          p("Rundung: Prozentwerte auf 1 Nachkommastelle, EW/ha auf 1, Fl\u00e4che auf 2 \u2013 konsistent mit den Sidebars der Karten.",
-            style = "color: #6c757d; font-size: 13px;"),
+          p("Hinweis: Prozentwerte und EW/ha sind auf 1, Flächen auf 2 Nachkommastelle(n) gerundet", style = "font-size: 13px; font-weight: normal; font-style: italic"),
+          hr(),
           DT::dataTableOutput("ranking_table")
         ),
 
@@ -293,8 +311,10 @@ server <- function(input, output, session) {
       return(tagList(
         h3("Einwohnerdichte und Erreichbarkeit von Badestellen nach Ortsteilen"),
         hr(),
-        p("Klicken Sie auf einen Ortsteil oder eine Badestelle, um Details anzuzeigen."),
-        p("Die Verkehrsmittelauswahl (Fahrrad / Zu Fuß) ändert die angezeigten Werte.")
+        p("Klicken Sie auf einen Ortsteil oder eine Badestelle, um Details anzuzeigen.",
+          style = "font-size: 19px; margin-top: 10px;"),
+        p("Die Verkehrsmittelauswahl (Fahrrad / Zu Fuß) ändert die angezeigten Werte.",
+          style = "font-size: 19px;")
       ))
     }
 
@@ -368,7 +388,7 @@ server <- function(input, output, session) {
          tags$br(),
          icon(if (input$mode == "cycling-regular") "bicycle" else "person-walking"),
          tags$span(
-           style = "font-size: 0.85em; font-weight: normal; font-style: italic",
+           style = "font-size: 13px; font-weight: normal; font-style: italic",
            paste0(" maximal 20 Minuten · ", mode_word)
          ), 
          tags$br(),
@@ -551,8 +571,9 @@ server <- function(input, output, session) {
     tagList(
       h3("Erreichbarkeit der Berliner Badestellen"),
       hr(),
-      
-      h4("Anteil der Bevölkerung nach Erreichbarkeitszone"),
+
+      p("Anteil der Bevölkerung nach Erreichbarkeitszone",
+        style = "font-size: 19px; margin-top: 10px;"),
       hr(),
       
       zone_row("Zone A - bis 5 Min.",  pct5,  pop5,    "#00868B", "#006366"),
@@ -630,24 +651,25 @@ server <- function(input, output, session) {
     }
 
     tagList(
-      h4(icon("trophy"), " Deine Challenges"),
+      h3("Challenges"),
       hr(),
-      p("Finden Sie die Antworten selbst – sortieren und filtern Sie in der Ortsteil-Tabelle dieses Tabs."),
+      p("Finden Sie die Antworten – sortieren und filtern Sie in der Ortsteil-Tabelle.",
+        style = "font-size: 19px; margin-top: 10px;"),
 
       section_hdr("bicycle", "Fahrrad"),
       challenge_box(
-        "Challenge 1: Dünn besiedelt & gut versorgt",
+        "Challenge 1",
         "Welcher Ortsteil ist besonders dünn besiedelt und außerdem gut mit Badestellen versorgt?",
-        "#D9C3E9",
+        "#CD5555",
         c1$ortsteil[[1]],
         paste0("(", c1$bezirk[[1]], "): nur ", fmt_dens(c1$pop_density[[1]]), " EW/ha, aber ",
                round(c1$access[[1]]), " % Fahrrad-Zugang in 20 Min. (",
                fmt_pop2(c1$pop_total[[1]]), " EW).")
       ),
       challenge_box(
-        "Challenge 2: Die meisten Menschen ohne Badestelle",
+        "Challenge 2",
         "In welchem Ortsteil leben die meisten Menschen ohne erreichbare Badestelle(n) – per Fahrrad innerhalb von maximal 20 Minuten?",
-        "#D9C3E9",
+        "#CD5555",
         c2$ortsteil[[1]],
         paste0("(", c2$bezirk[[1]], "): ", fmt_pop2(c2$pop_no[[1]]), " von ",
                fmt_pop2(c2$pop_total[[1]]), " EW ohne Badestelle in 20 Min. (0 % Zugang)")
@@ -655,16 +677,16 @@ server <- function(input, output, session) {
 
       section_hdr("person-walking", "Zu Fuß"),
       challenge_box(
-        "Challenge 3: Wie viele Ortsteile ohne Badestelle?",
+        "Challenge 3",
         "Für wie viele der 97 Berliner Ortsteile gibt es keine (oder praktisch keine) Badestellen, die in maximal 20 Minuten zu Fuß erreichbar sind?",
-        "#A4F4B5",
+        "#8B3A3A",
         paste0(n_walk0_prac, " von 97 Ortsteilen"),
         paste0(n_walk0, " Ortsteile haben exakt 0 %, 2 weitere (Reinickendorf, Fennpfuhl) runden auf 0,0 %.")
       ),
       challenge_box(
-        "Challenge 4: Alle können zu Fuß baden",
+        "Challenge 4",
         "In welchem Ortsteil können alle Einwohner*innen zu Fuß und in maximal 20 Minuten eine Badestelle erreichen? Was ist das Besondere an diesem Ortsteil?",
-        "#A4F4B5",
+        "#8B3A3A",
         c4$ortsteil[[1]],
         paste0("(", c4$bezirk[[1]], "): mit nur ", fmt_km2(c4$area_km2[[1]]),
                " km² der zweitkleinste Ortsteil Berlins – Badestelle: Strandbad Halensee im angrenzenden Grunewald.")
@@ -672,9 +694,9 @@ server <- function(input, output, session) {
 
       section_hdr("star", "Zusatzfrage"),
       challenge_box(
-        "Zusatzfrage: Am wenigsten versorgter Bezirk",
+        "Challenge 5",
         "Die Bevölkerung welches Bezirks kann keine oder die wenigsten Badestellen erreichen (zu Fuß und/oder Fahrrad)?",
-        "#FDB269",
+        "#00C5CD",
         c5$bezirk[[1]],
         paste0("0 % Zugang – weder zu Fuß noch mit dem Fahrrad (", fmt_pop2(c5$pop[[1]]),
                " EW). Kein anderer Bezirk liegt bei beiden Verkehrsmitteln bei 0 %.")
