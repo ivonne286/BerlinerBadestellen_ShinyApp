@@ -136,25 +136,23 @@ ui <- fluidPage(
           div(
             style = "position: relative;",
             tmapOutput("iso_map", height = "880px"),
-            # Legende: Kreisgröße = Druck auf Badestelle (Overlay auf der Karte)
+            # Custom legend: Kreisgröße = Druck auf Badestelle
             div(
-              style = "position: absolute; bottom: 20px; left: 20px; z-index: 1000; background: #FFFFFFE6; padding: 10px 14px; border-radius: 4px; box-shadow: 0 1px 4px #0000004D;",
-              p(style = "font-size: 13px; font-weight: bold; color: #00494C; margin: 0 0 8px 0;",
-                "Druck auf Badestelle"),
-              div(
-                style = "display: flex; align-items: flex-end; gap: 24px;",
+              style = "position: absolute; top: 130px; right: 10px; z-index: 1000;
+             width: 180px; background: #FFFFFFCC; padding: 10px 14px;
+             border-radius: 4px; box-shadow: 0 1px 4px #0000004D;",
+              p(style = "font-family: sans-serif; font-size: 12px; font-weight: normal; color: black; margin: 0 0 8px 0;",
+                "Druck auf Badestellen"),
+              div(style = "display: flex; align-items: center;",
                 div(style = "text-align: center;",
-                    div(style = "width: 12px; height: 12px; border-radius: 50%; background: #00EEEE; border: 2px solid darkslategrey; margin: 0 auto;"),
-                    p(style = "font-size: 11px; margin: 4px 0 0 0; color: #00494C;", "niedrig")),
+                  div(style = "width: 12px; height: 12px; border-radius: 50%; background: #00EEEE; border: 2px solid darkslategrey; margin: 0 auto;"),
+                  p(style = "font-size: 10px; margin: 3px 0 0 0; color: black;", "niedrig")),
+                div(style = "display: flex; align-items: center; width: 60px; margin-top: -6px;",
+                  div(style = "flex: 1; height: 2px; background: darkslategrey;"),
+                  div(style = "width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 8px solid darkslategrey;")),
                 div(style = "text-align: center;",
-                    div(style = "width: 34px; height: 34px; border-radius: 50%; background: #00EEEE; border: 2px solid darkslategrey; margin: 0 auto;"),
-                    p(style = "font-size: 11px; margin: 4px 0 0 0; color: #00494C;", "hoch"))
-              ),
-              div(
-                style = "display: flex; align-items: center; margin-top: 8px;",
-                div(style = "flex: 1; height: 2px; background: darkslategrey;"),
-                div(style = "width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 8px solid darkslategrey;")
-              )
+                  div(style = "width: 28px; height: 28px; border-radius: 50%; background: #00EEEE; border: 2px solid darkslategrey; margin: 0 auto;"),
+                  p(style = "font-size: 10px; margin: 3px 0 0 0; color: black;", "hoch")))
             )
           )
         ),
@@ -235,7 +233,9 @@ server <- function(input, output, session) {
     req(input$mode)
 
     # lake ranking / bubble size depends on travel mode
-    lakes <- shiny_lakes |> filter(mode == input$mode)
+    lakes <- shiny_lakes |>
+      filter(mode == input$mode) |>
+      mutate(legend_label = "Badestelle")
 
     tm_basemap("CartoDB.PositronNoLabels") +
 
@@ -279,7 +279,9 @@ server <- function(input, output, session) {
       # Lakes (simple points)
       tm_shape(lakes) +
       tm_symbols(
-        fill = "cyan2",
+        fill = "legend_label",
+        fill.scale = tm_scale_categorical(values = "cyan2"),
+        fill.legend = tm_legend(title = ""),
         col = "darkslategrey",
         size = 0.7,
         lwd = 1.5,
@@ -302,7 +304,8 @@ server <- function(input, output, session) {
 
       # Border
       tm_shape(shiny_berlin_boundary) +
-      tm_borders(col = "darkslategrey", lwd = 1.5)
+      tm_borders(col = "darkslategrey", lwd = 1.5) +
+      tm_layout(legend.position = c("right", "top"))
   })
 
 
@@ -548,7 +551,7 @@ server <- function(input, output, session) {
         xmod = 0,
         ymod = 0.1
       ) +
-      tm_layout(legend.outside = TRUE)
+      tm_layout(legend.position = c("right", "top"))
   })
 
   # ────────────────────────
