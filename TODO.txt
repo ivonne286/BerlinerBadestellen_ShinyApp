@@ -1,9 +1,8 @@
 TODO - Bathing Sites in Berlin (Shiny-App)
-Stand: 2026-09-03
+Stand: 2026-09-07
 
-- Tab 1: Möglichkeit Lake-Names/OT/Bezirksnamen sowie Iso-Rand-Linien einzublenden?
-- Lake-Tabelle? Lake-Ranking irgendwie noch visualisieren? Sidebar-Anzeige?
-- Metadaten updaten/korrigieren/vervollständigen
 
-- besseren Platz finden für diesen Hinweis aus ehemals Tab 2: Gesamtbevölkerung Berlin laut Datenbasis (2025): 3,9 Mio. (3.913.490 EW)
+- Tab 1: Möglichkeit Layers wie Badestellen-Namen, Bezirk-Namen, Iso-Rand-Linien einzublenden?
+- Tab 5: Metadaten updaten/korrigieren/vervollständigen (angefangen)
 
+- App insgesamt, aufteilen backend, frontend?

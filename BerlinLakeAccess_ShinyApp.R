@@ -170,11 +170,11 @@ ui <- fluidPage(
 
         # Tab 4: Badestellen-Tabelle
         tabPanel(
-          title = "Badestellen",
+          title = "Badestellen-Tabelle",
           value = "lakes",
           h3("Alle Badestellen im Vergleich"),
           hr(),
-          p("Hinweis: 39 offizielle, von der EU überwachte Badestellen. Rang und Druckanteil sind modellbasiert (Gravity-Modell, Methodik siehe Tab Metadaten); Prozentwerte auf 1 Nachkommastelle gerundet. Zu Fuß sind 3 Badestellen nicht gerankt – in ihren 20-Minuten-Zonen liegt keine Bevölkerung.",
+          p("Hinweis: 39 offizielle, von der EU überwachte Badestellen. Rang und zugerechnete Einwohner*innen (EW) sind modellbasiert (Gravity-Modell, Methodik siehe Tab Metadaten); Prozentwerte auf 1 Nachkommastelle gerundet, Personenzahlen gerundet auf ganze Personen.",
             style = "font-size: 13px; font-weight: normal; font-style: italic"),
           hr(),
           DT::dataTableOutput("lakes_table")
@@ -188,6 +188,8 @@ ui <- fluidPage(
           hr(),
           h4("Datenbasis & Jahr"),
           p("Bevölkerungsraster (2025), Auflösung 100x100 m."),
+          p("Gesamtbevölkerung Berlin laut Datenbasis (2025): 3,9 Mio. (3.913.490 EW)."),
+          p("Alle Angaben zu Einwohner*innen in der App (Karten und Tabellen) beruhen auf dieser Zahl."),
           hr(),
           h4("Hinweis zur Einwohnerzahl"),
           p("Die Einwohnerzahl wird aus dem Bevölkerungsraster abgeleitet und ist keine amtliche Einwohnerzahl. Personen, die laut Raster in Wasserflächen leben, wurden ausgeschlossen."),
@@ -196,7 +198,12 @@ ui <- fluidPage(
           p("Isochronen-Berechnung für Fahrrad und Fuß; Erreichbarkeitszonen in 5-, 10- und 20-Minuten-Ringen."),
           hr(),
           h4("Ranking der Badestellen"),
-          p("Der Rang einer Badestelle ergibt sich aus einem Gravity-Modell, das sowohl Entfernung als auch Konkurrenz zwischen Badestellen berücksichtigt. Jeder Bevölkerungspunkt wird allen Badestellen zugeordnet, die er innerhalb von 20 Minuten erreichen kann. Nähere Badestellen erhalten dabei ein höheres Gewicht (5 Minuten = 1, 10 Minuten = 0,5, 20 Minuten = 0,25). Die Einwohner*innen eines Punktes werden anteilig auf alle erreichbaren Badestellen verteilt – je mehr konkurrierende Badestellen in der Nähe liegen, desto weniger entfällt auf die einzelne. Der Gravity-Score einer Badestelle ist die Summe dieser gewichteten und aufgeteilten Einwohner*innen. Der Rang ist die Position nach absteigendem Gravity-Score (Rang 1 = höchste potenzielle Nachfrage). Der Druckanteil (pressure share) gibt an, welcher Anteil der Berliner Bevölkerung nach diesem Modell auf die jeweilige Badestelle entfällt."),
+          p("Das Ranking der Badestellen basiert auf einem Gravity-Modell, das berücksichtigt, wie gut die Badestellen von der Berliner Bevölkerung aus erreichbar sind und wie stark sie dabei mit anderen erreichbaren Badestellen konkurrieren."),
+          p("Dazu wird für jeden Bevölkerungspunkt ermittelt, welche Badestellen innerhalb von 20 Minuten mit dem jeweiligen Verkehrsmittel erreichbar sind. Je kürzer die Reisezeit, desto höher das Gewicht: 5 Minuten entsprechen einem Gewicht von 1, 10 Minuten von 0,5 und 20 Minuten von 0,25."),
+          p("Erreicht ein Bevölkerungspunkt mehrere Badestellen, wird seine Einwohnerzahl auf diese Badestellen verteilt. Dabei erhält eine näher gelegene Badestelle einen größeren Anteil, während zusätzliche erreichbare Badestellen den Anteil der einzelnen Badestelle verringern."),
+          p("Der Gravity-Score einer Badestelle ist die Summe der auf diese Weise zugeordneten Einwohner*innen. Er beschreibt damit eine modellbasierte, distanz- und konkurrenzgewichtete Bevölkerungsgröße – und nicht die tatsächliche oder erwartete Zahl der Badegäste."),
+          p("Das Ranking ergibt sich aus dem Gravity-Score: Rang 1 hat den höchsten modellbasierten Wert."),
+          p("Der Pressure Share zeigt, welcher Anteil der gesamten Berliner Bevölkerung einer Badestelle nach diesem Modell zugeordnet wird. Ein Wert von beispielsweise 10 % bedeutet daher, dass dem See nach dem Modell ein Anteil von 10 % der Berliner Bevölkerung zugerechnet wird."),
           hr(),
           h4("Quellen"),
           p("Badestellen, Ortsteile, Bezirke, Wasserflächen.")
@@ -755,7 +762,7 @@ server <- function(input, output, session) {
         "Für wie viele der 97 Berliner Ortsteile gibt es keine (oder praktisch keine) Badestellen, die in maximal 20 Minuten zu Fuß erreichbar sind?",
         "#8B3A3A",
         paste0(n_walk0_prac, " von 97 Ortsteilen"),
-        paste0(n_walk0, " Ortsteile haben exakt 0 %, 2 weitere (Reinickendorf, Fennpfuhl) runden auf 0,0 %.")
+        paste0(n_walk0, " Ortsteile haben exakt 0 %, 2 weitere (Fennpfuhl, Reinickendorf) liegen unter 0,1 %.")
       ),
       challenge_box(
         "Challenge 4",
@@ -824,7 +831,7 @@ server <- function(input, output, session) {
   output$lakes_table <- DT::renderDataTable({
     lk <- shiny_lakes |>
       st_drop_geometry() |>
-      select(lake_name, bezirk, ortsteil, mode, rank, pressure_share_pct, link)
+      select(lake_name, bezirk, ortsteil, mode, rank, pressure_share_pct)
 
     lk_c <- lk |> filter(mode == "cycling-regular") |> select(-mode)
     lk_w <- lk |>
@@ -838,14 +845,11 @@ server <- function(input, output, session) {
         Bezirk = bezirk,
         Ortsteil = ortsteil,
         `Rang (Fahrrad)` = rank.cyc,
+        `Zugerechnete EW in % (Fahrrad)` = round(pressure_share_pct.cyc, 1),
+        `Zugerechnete EW (Fahrrad)` = round(pressure_share_pct.cyc / 100 * 3913490),
         `Rang (zu Fuß)` = rank.walk,
-        `Druckanteil in % (Fahrrad)` = round(pressure_share_pct.cyc, 1),
-        `Druckanteil in % (zu Fuß)` = round(pressure_share_pct.walk, 1),
-        Link = if_else(
-          is.na(link),
-          NA_character_,
-          paste0('<a href="', link, '" target="_blank">LAGESO</a>')
-        )
+        `Zugerechnete EW in % (zu Fuß)` = round(pressure_share_pct.walk, 1),
+        `Zugerechnete EW (zu Fuß)` = round(pressure_share_pct.walk / 100 * 3913490)
       ) |>
       arrange(`Rang (Fahrrad)`, `Rang (zu Fuß)`)
 
@@ -853,10 +857,9 @@ server <- function(input, output, session) {
       lk_tab,
       rownames = FALSE,
       filter = "top",
-      escape = FALSE,
       options = list(
-        pageLength = 10,
-        lengthMenu = c(10, 25, 50, 39),
+        pageLength = 15,
+        lengthMenu = c(15, 25, 39),
         language = list(
           emptyTable = "Keine Daten",
           search = "Suchen:",
@@ -877,7 +880,7 @@ server <- function(input, output, session) {
 
     lk <- shiny_lakes |>
       st_drop_geometry() |>
-      select(lake_name, bezirk, ortsteil, mode, rank, pressure_share_pct, link)
+      select(lake_name, bezirk, ortsteil, mode, rank, pressure_share_pct)
     lk_c <- lk |> filter(mode == "cycling-regular") |> select(-mode)
     lk_w <- lk |>
       filter(mode == "foot-walking") |>
@@ -913,44 +916,66 @@ server <- function(input, output, session) {
       mutate(gain = rank.walk - rank.cyc) |>
       arrange(desc(gain)) |>
       slice_head(n = 1)
-    # B2: Top 3 Druckanteil zu Fuß
+    # B2: zwei Badestellen mit rund 1 % zu Fuß
     b2 <- lk_tab |>
-      arrange(desc(pressure_share_pct.walk)) |>
-      slice_head(n = 3)
-    # B3: zu Fuß ungerankte Badestellen
-    b3 <- lk_tab |> filter(is.na(rank.walk))
+      filter(round(pressure_share_pct.walk, 1) == 1) |>
+      arrange(desc(pressure_share_pct.walk))
+    # B3: in beiden Top 5
+    top_cyc5 <- lk_tab |>
+      arrange(rank.cyc) |>
+      slice_head(n = 5) |>
+      pull(lake_name)
+    top_walk5 <- lk_tab |>
+      arrange(rank.walk) |>
+      slice_head(n = 5) |>
+      pull(lake_name)
+    b3 <- lk_tab |>
+      filter(lake_name %in% intersect(top_cyc5, top_walk5)) |>
+      arrange(rank.cyc)
 
     tagList(
       h3("Challenges"),
       hr(),
       p("Finden Sie die Antworten – sortieren und filtern Sie in der Badestellen-Tabelle.",
         style = "font-size: 19px; margin-top: 10px;"),
+      p("Details zur Berechnung mit dem Gravity-Modell finden sich in den Metadaten.",
+        style = "font-size: 13px; font-weight: normal; font-style: italic"),
 
       section_hdr("water", "Badestellen"),
       challenge_box(
         "Challenge B1",
-        "Welche Badestelle klettert im Ranking am stärksten, wenn man statt zu Fuß das Fahrrad nimmt?",
-        "#B452CD",
-        b1$lake_name[[1]],
-        paste0("(", b1$bezirk[[1]], "): Rang ", b1$rank.walk[[1]], " zu Fuß, aber Rang ",
-               b1$rank.cyc[[1]], " mit dem Fahrrad – ", b1$gain[[1]], " Plätze besser.")
+        "Bei welcher Badestelle ändert sich die Zahl der zugerechneten Einwohner*innen am stärksten, wenn man statt zu Fuß mit dem Fahrrad anreist?",
+        "#00C5CD",
+        "Strandbad Weißensee",
+        "(Pankow): Dem Strandbad werden mit dem Fahrrad rund 428.000 Einwohner*innen zugerechnet, zu Fuß nur rund 36.000 – ein Unterschied von rund 392.000."
       ),
       challenge_box(
         "Challenge B2",
-        "Welche drei Badestellen haben zu Fuß den höchsten Druckanteil?",
-        "#00868B",
-        paste(b2$lake_name, collapse = ", "),
-        paste0("zu Fuß: ", fmt_pct(b2$pressure_share_pct.walk[[1]]), " %, ",
-               fmt_pct(b2$pressure_share_pct.walk[[2]]), " %, ",
-               fmt_pct(b2$pressure_share_pct.walk[[3]]), " % der Berliner Bevölkerung.")
+        "Welchen beiden Badestellen wird zu Fuß jeweils rund 1 % der Berliner Bevölkerung zugerechnet?",
+        "#00C5CD",
+        "Strandbad Halensee (Charlottenburg-Wilmersdorf) und Flussbad Gartenstraße (Treptow-Köpenick)",
+        "Beiden Badestellen wird zu Fuß jeweils rund 1 % der Berliner Bevölkerung zugerechnet."
       ),
       challenge_box(
         "Challenge B3",
-        "Drei Badestellen sind zu Fuß nicht gerankt. Welche sind es – und warum?",
-        "#EE6363",
-        paste(b3$lake_name, collapse = ", "),
-        paste0("In ihren 20-Minuten-Fuß-Zonen liegt keine Bevölkerung (Bezirke: ",
-               paste(unique(b3$bezirk), collapse = ", "), ").")
+        "Welche drei Badestellen gehören sowohl mit dem Fahrrad als auch zu Fuß zu den Top 5 im Ranking?",
+        "#00C5CD",
+        "Strandbad Weißensee (Pankow), Strandbad Halensee (Charlottenburg-Wilmersdorf) und Strandbad Orankesee (Lichtenberg)",
+        "Diese drei Badestellen liegen vergleichsweise zentral in Gebieten mit hoher Bevölkerungsdichte, weshalb ihnen in beiden Modi hohe Anteile der Berliner Bevölkerung zugerechnet werden."
+      ),
+      challenge_box(
+        "Challenge B4",
+        "In welchen drei Ortsteilen liegen die Badestellen, denen mit dem Fahrrad weniger als 2.500 Einwohner*innen zugerechnet werden – und was haben sie gemeinsam?",
+        "#00C5CD",
+        "Schmöckwitz (Treptow-Köpenick), Nikolassee (Steglitz-Zehlendorf) und Grunewald (Charlottenburg-Wilmersdorf)",
+        "Die vier Badestellen (Seddinsee, Schmöckwitz, Lieper Bucht und Grunewaldturm) liegen weit am Stadtrand in großen Wald- und Seengebieten, in denen kaum Menschen wohnen – ihnen werden daher nur rund 1.000 bis 2.400 Einwohner*innen zugerechnet. Das Muster zeigt sich auf beiden Stadtseiten."
+      ),
+      challenge_box(
+        "Challenge B5",
+        "Zu Fuß werden zwei Badestellen gar nicht gerankt. Um welche beiden Badestellen handelt es sich?",
+        "#00C5CD",
+        "Lieper Bucht und Radfahrerwiese (beide Ortsteil Nikolassee, Steglitz-Zehlendorf)",
+        "In ihren 20-Minuten-Zonen zu Fuß liegt keine Wohnbevölkerung, ihnen werden daher keine Einwohner*innen zugerechnet und somit kein Rang."
       )
     )
   })
