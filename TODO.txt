@@ -1,8 +1,9 @@
 TODO - Bathing Sites in Berlin (Shiny-App)
-Stand: 2026-09-07
+Stand: 2026-09-07 23h12m
 
-
-- Tab 1: Möglichkeit Layers wie Badestellen-Namen, Bezirk-Namen, Iso-Rand-Linien einzublenden?
-- Tab 5: Metadaten updaten/korrigieren/vervollständigen (angefangen)
-
-- App insgesamt, aufteilen backend, frontend?
+- Untertitel neu?: Thematische Karten: Ortsteilanalye und Erreichbarkeitszonen
+- Wording: Verkehrsmittel (passt nicht so richtig)
+- Tab 1: Möglichkeit Iso-Rand-Linien einzublenden, Ortsteil Label?
+- Tab 2: Badestellen-Namen Label verbessern wenn möglich
+- Tab 5: Metadaten korrigieren und vervollständigen (angefangen)
+- App insgesamt: aufteilen in Back- und Frontend?

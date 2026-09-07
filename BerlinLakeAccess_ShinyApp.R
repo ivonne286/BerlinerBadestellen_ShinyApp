@@ -136,13 +136,13 @@ ui <- fluidPage(
           div(
             style = "position: relative;",
             tmapOutput("iso_map", height = "880px"),
-            # Custom legend: Kreisgröße = Druck auf Badestelle
+            # Custom legend: Kreisgröße = zugerechnete EW (modellbasiert)
             div(
               style = "position: absolute; top: 130px; right: 10px; z-index: 1000;
              width: 180px; background: #FFFFFFCC; padding: 10px 14px;
              border-radius: 4px; box-shadow: 0 1px 4px #0000004D;",
               p(style = "font-family: sans-serif; font-size: 12px; font-weight: normal; color: black; margin: 0 0 8px 0;",
-                "Druck auf Badestellen"),
+                "Zugerechnete EW (modellbasiert)"),
               div(style = "display: flex; align-items: center;",
                 div(style = "text-align: center;",
                   div(style = "width: 12px; height: 12px; border-radius: 50%; background: #00EEEE; border: 2px solid darkslategrey; margin: 0 auto;"),
@@ -215,6 +215,15 @@ ui <- fluidPage(
 
 
 # ─────────────────────────────────────────────────────────
+# Hover-Tooltip für Bezirke (Tab 1): "Bezirk: <Name>"
+# ─────────────────────────────────────────────────────────
+shiny_bezirke$bezirk_hover <- paste("Bezirk:", shiny_bezirke$bezirk)
+
+# Eindeutige Klick-ID pro Bezirk (B_<nr>): verhindert, dass ein Bezirks-Klick
+# als Ortsteil-Klick interpretiert wird (Namensgleichheit, z. B. "Mitte")
+shiny_bezirke$bezirk_click <- paste0("B_", seq_len(nrow(shiny_bezirke)))
+
+# ─────────────────────────────────────────────────────────
 # SERVER
 # ─────────────────────────────────────────────────────────
 server <- function(input, output, session) {
@@ -247,7 +256,7 @@ server <- function(input, output, session) {
     tm_basemap("CartoDB.PositronNoLabels") +
 
       # Basis - Heatmap
-      tm_shape(shiny_ew_density_raster) +
+      tm_shape(shiny_ew_density_raster, name = "Einwohnerdichte") +
       tm_raster(
         col.scale = tm_scale_continuous_sqrt(values = "yl_or_rd"),
         col_alpha = 0.8,
@@ -255,15 +264,30 @@ server <- function(input, output, session) {
       ) +
 
       # Wasser
-      tm_shape(shiny_water_background) +
+      tm_shape(shiny_water_background, name = "Wasserflächen") +
       tm_polygons(
         fill = "turquoise3",
         fill_alpha = 0.8,
         lwd = 0
       ) +
 
+      # Bezirke: unsichtbare Füllung (fill_alpha = 0) bleibt interaktiv,
+      # damit Bezirksnamen als Hover-Tooltip erscheinen, wenn die
+      # Ortsteilgrenzen ausgeblendet sind. Liegt UNTER den Ortsteilen.
+      tm_shape(shiny_bezirke, name = "Bezirksgrenzen") +
+      tm_polygons(
+        fill = "grey95",
+        fill_alpha = 0,
+        col = "darkslategrey",
+        lwd = 1.25,
+        id = "bezirk_click",
+        hover = "bezirk_hover",
+        popup = FALSE,
+        fill.legend = tm_legend_hide()
+      ) +
+
       # Ortsteile
-      tm_shape(shiny_ortsteile) +
+      tm_shape(shiny_ortsteile, name = "Ortsteilgrenzen") +
       tm_polygons(
         fill = NULL,
         col = "indianred4",
@@ -279,12 +303,8 @@ server <- function(input, output, session) {
         )
       ) +
 
-      # Bezirke
-      tm_shape(shiny_bezirke) +
-      tm_borders(col = "darkslategrey", lwd = 1.25) +
-
       # Lakes (simple points)
-      tm_shape(lakes) +
+      tm_shape(lakes, name = "Badestellen") +
       tm_symbols(
         fill = "legend_label",
         fill.scale = tm_scale_categorical(values = "cyan2"),
@@ -309,9 +329,6 @@ server <- function(input, output, session) {
         )
       ) +
 
-      # Border
-      tm_shape(shiny_berlin_boundary) +
-      tm_borders(col = "darkslategrey", lwd = 1.5) +
       tm_layout(legend.position = c("right", "top"))
   })
 
@@ -319,8 +336,8 @@ server <- function(input, output, session) {
   # ────────────────────────
   # Tab 1 Sidebar: selected Ortsteil
   # ────────────────────────
-  # Last clicked Ortsteil (NULL = nothing selected yet)
-  sel_ortsteil <- reactiveVal(NULL)
+  # Last map selection (NULL = nothing selected yet); type "ortsteil" or "bezirk"
+  selection <- reactiveVal(NULL)
 
   observeEvent(input$density_map_shape_click$id, {
     clicked <- input$density_map_shape_click$id
@@ -331,11 +348,17 @@ server <- function(input, output, session) {
       filter(lake_id == clicked) |>
       pull(ortsteil)
     if (length(lake_hit) > 0) {
-      sel_ortsteil(lake_hit[1])
+      selection(list(type = "ortsteil", ortsteil = lake_hit[1]))
       return()
     }
 
-    # 2) Ortsteil click: tmap replaces non-alphanumeric chars (spaces,
+    # 2) Bezirk click: unique B_<nr> id -> nur Mini-Info in der Sidebar
+    if (grepl("^B_[0-9]+$", clicked)) {
+      selection(list(type = "bezirk", idx = as.integer(sub("^B_", "", clicked))))
+      return()
+    }
+
+    # 3) Ortsteil click: tmap replaces non-alphanumeric chars (spaces,
     #    hyphens, ...) with underscores in the feature ID; reverse that.
     #    Second pattern covers a stricter ASCII sanitization of umlauts.
     hit <- shiny_ortsteile$ortsteil[
@@ -348,15 +371,16 @@ server <- function(input, output, session) {
     }
 
     # click on something else -> keep the current selection
-    if (length(hit) > 0) sel_ortsteil(hit[1])
+    if (length(hit) > 0) selection(list(type = "ortsteil", ortsteil = hit[1]))
   })
 
-  # map1 sidebar: selected Ortsteil
+  # map1 sidebar: selected Ortsteil or Bezirk
   output$sidebar_content <- renderUI({
 
+    sel <- selection()
+
     # Startup / nothing selected yet: title + instructions + two extremes
-    ot_name <- sel_ortsteil()
-    if (is.null(ot_name)) {
+    if (is.null(sel)) {
 
       return(tagList(
         h3("Einwohnerdichte und Erreichbarkeit von Badestellen nach Ortsteilen"),
@@ -368,6 +392,30 @@ server <- function(input, output, session) {
       ))
     }
 
+    # Bezirk angeklickt: nur minimale Info (Name + Anzahl Badestellen)
+    if (sel$type == "bezirk") {
+      bz_name <- shiny_bezirke$bezirk[sel$idx]
+      # st_drop_geometry: summarise auf leeren sf-Objekten (Bezirk ohne
+      # Badestellen) wirft sonst einen Recycle-Fehler
+      n_lakes <- shiny_lakes |>
+        st_drop_geometry() |>
+        filter(bezirk == bz_name) |>
+        summarise(n = n_distinct(lake_name)) |>
+        pull(n)
+      return(tagList(
+        h3("Einwohnerdichte und Erreichbarkeit von Badestellen nach Ortsteilen"),
+        hr(),
+        h5("Bezirk"),
+        div(style = "font-size: 28px; font-weight: bold; color: #00868B;", bz_name),
+        h5("Badestellen im Bezirk"),
+        div(style = "font-size: 24px; font-weight: bold; color: #00868B;", n_lakes),
+        hr(),
+        p("Hinweis: Details wie Einwohnerdichte und erreichbare Badestellen finden sich auf Ortsteil-Ebene.",
+          style = "font-size: 13px; font-weight: normal; font-style: italic;")
+      ))
+    }
+
+    ot_name <- sel$ortsteil
     ot <- shiny_ortsteile |> filter(ortsteil == ot_name)
 
     # lakes reachable from this Ortsteil within 20 min (current travel mode):
@@ -495,7 +543,7 @@ server <- function(input, output, session) {
     tm_basemap("CartoDB.Positron") +
 
       # rings
-      tm_shape(rings) +
+      tm_shape(rings, name = "Erreichbarkeitszonen") +
       tm_polygons(
         fill = "zone",
         fill.legend = tm_legend(title = legend_title),
@@ -506,7 +554,7 @@ server <- function(input, output, session) {
       ) +
 
       # water background
-      tm_shape(shiny_water_background) +
+      tm_shape(shiny_water_background, name = "Wasserflächen") +
       tm_polygons(
         fill = "turquoise3",
         fill_alpha = 0.9,
@@ -514,19 +562,14 @@ server <- function(input, output, session) {
       ) +
       tm_layout(frame = FALSE) +
 
-      # border
-      tm_shape(shiny_berlin_boundary) +
-      tm_borders(
-        col = "darkslategrey",
-        lwd = 2
-      ) +
+      # Bezirke & Ortsteile (nur Grenzen; im Layermenü ein-/ausblendbar)
+      tm_shape(shiny_ortsteile, name = "Ortsteilgrenzen") +
+      tm_borders(col = "indianred4", lwd = 0.6, col_alpha = 0.4) +
+      tm_shape(shiny_bezirke, name = "Bezirksgrenzen") +
+      tm_borders(col = "darkslategrey", lwd = 1, col_alpha = 0.55) +
 
-      
-      # size.legend.show = FALSE,
-      # fill.legend.show = FALSE,
-      #
       # lakes (gravity-sized bubbles with rank)
-      tm_shape(lakes) +
+      tm_shape(lakes, name = "Badestellen") +
       tm_bubbles(
         size = "gravity_visual",
         size.legend  = tm_legend_hide(),
@@ -653,14 +696,14 @@ server <- function(input, output, session) {
 
       h4("Badestellen unter Druck"),
       p(tags$span(style = "font-size: 13px; font-weight: normal; font-style: italic",
-                  icon("umbrella-beach"), " Top 3 – Rang 1 = höchster potenzieller Druck")),
+                  icon("umbrella-beach"), " Top 3 – Rang 1 = höchster Gravity-Score (modellbasiert zugeordnete Einwohner*innen)")),
 
       lapply(seq_len(nrow(top3)), function(i) {
         p(style = "margin: 2px 0; color: #15C8CF; font-weight: bold; font-size: 15px;",
           paste0("Rang ", i, ": ", top3$lake_name[i]))
       }),
 
-      p("Methodik zur Berechnung des Drucks auf die Badestellen, siehe Tab 'Metadaten'.",
+      p("Rang und zugerechnete Einwohner*innen sind modellbasiert (Gravity-Modell): Methodik siehe Tab 'Metadaten'.",
   tags$br(),
   "Gesamtes Ranking: siehe Tab 'Badestellen-Tabelle'",
   style = "font-size: 13px; font-weight: normal; font-style: italic; margin-top: 8px;")
@@ -741,7 +784,7 @@ server <- function(input, output, session) {
       challenge_box(
         "Challenge 1",
         "Welcher Ortsteil ist besonders dünn besiedelt und außerdem gut mit Badestellen versorgt?",
-        "#CD5555",
+        "#EE6363",
         c1$ortsteil[[1]],
         paste0("(", c1$bezirk[[1]], "): nur ", fmt_dens(c1$pop_density[[1]]), " EW/ha, aber ",
                round(c1$access[[1]]), " % Fahrrad-Zugang in 20 Min. (",
@@ -750,7 +793,7 @@ server <- function(input, output, session) {
       challenge_box(
         "Challenge 2",
         "In welchem Ortsteil leben die meisten Menschen ohne erreichbare Badestelle(n) – per Fahrrad innerhalb von maximal 20 Minuten?",
-        "#CD5555",
+        "#EE6363",
         c2$ortsteil[[1]],
         paste0("(", c2$bezirk[[1]], "): ", fmt_pop2(c2$pop_no[[1]]), " von ",
                fmt_pop2(c2$pop_total[[1]]), " EW ohne Badestelle in 20 Min. (0 % Zugang)")
@@ -760,14 +803,14 @@ server <- function(input, output, session) {
       challenge_box(
         "Challenge 3",
         "Für wie viele der 97 Berliner Ortsteile gibt es keine (oder praktisch keine) Badestellen, die in maximal 20 Minuten zu Fuß erreichbar sind?",
-        "#8B3A3A",
+        "#EE6363",
         paste0(n_walk0_prac, " von 97 Ortsteilen"),
         paste0(n_walk0, " Ortsteile haben exakt 0 %, 2 weitere (Fennpfuhl, Reinickendorf) liegen unter 0,1 %.")
       ),
       challenge_box(
         "Challenge 4",
         "In welchem Ortsteil können alle Einwohner*innen zu Fuß und in maximal 20 Minuten eine Badestelle erreichen? Was ist das Besondere an diesem Ortsteil?",
-        "#8B3A3A",
+        "#EE6363",
         c4$ortsteil[[1]],
         paste0("(", c4$bezirk[[1]], "): mit nur ", fmt_km2(c4$area_km2[[1]]),
                " km² der zweitkleinste Ortsteil Berlins – Badestelle: Strandbad Halensee im angrenzenden Grunewald.")
@@ -777,7 +820,7 @@ server <- function(input, output, session) {
       challenge_box(
         "Challenge 5",
         "Die Bevölkerung welches Bezirks kann keine oder die wenigsten Badestellen erreichen (zu Fuß und/oder Fahrrad)?",
-        "#00C5CD",
+        "#EE6363",
         c5$bezirk[[1]],
         paste0("0 % Zugang – weder zu Fuß noch mit dem Fahrrad (", fmt_pop2(c5$pop[[1]]),
                " EW). Kein anderer Bezirk liegt bei beiden Verkehrsmitteln bei 0 %.")
@@ -941,7 +984,7 @@ server <- function(input, output, session) {
       p("Details zur Berechnung mit dem Gravity-Modell finden sich in den Metadaten.",
         style = "font-size: 13px; font-weight: normal; font-style: italic"),
 
-      section_hdr("water", "Badestellen"),
+      section_hdr("umbrella-beach", "Badestellen"),
       challenge_box(
         "Challenge B1",
         "Bei welcher Badestelle ändert sich die Zahl der zugerechneten Einwohner*innen am stärksten, wenn man statt zu Fuß mit dem Fahrrad anreist?",
