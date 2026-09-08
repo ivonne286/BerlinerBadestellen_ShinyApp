@@ -161,7 +161,27 @@ ui <- fluidPage(
                   div(style = "font-size: 30px; font-weight: bold; color: #CD5C5C;", "3,9 Mio."),
                   div(style = "font-size: 13px; color: #8B3A3A;", "Einwohner*innen"))
             ),
-            img(src = "uebersicht.png", style = "max-width: 100%; height: auto; border-radius: 4px; box-shadow: 0 1px 4px #0000004D;")
+            div(
+              style = "display: flex; justify-content: center; gap: 24px; flex-wrap: wrap;",
+              div(
+                style = "width: 380px; max-width: 100%;",
+                div(style = "margin-bottom: 6px; font-size: 14px; font-weight: bold; color: #00868B;",
+                    icon("bicycle"), " Fahrrad"),
+                div(
+                  style = "border: 1px solid #00868B; border-radius: 4px; padding: 4px; background: #FFFFFF; box-shadow: 0 1px 4px #0000004D;",
+                  img(src = "start_map_shiny_cycle.png", style = "width: 100%; height: auto; border-radius: 2px;")
+                )
+              ),
+              div(
+                style = "width: 380px; max-width: 100%;",
+                div(style = "margin-bottom: 6px; font-size: 14px; font-weight: bold; color: #00868B;",
+                    icon("person-walking"), " Zu Fuß"),
+                div(
+                  style = "border: 1px solid #00868B; border-radius: 4px; padding: 4px; background: #FFFFFF; box-shadow: 0 1px 4px #0000004D;",
+                  img(src = "start_map_shiny_walk.png", style = "width: 100%; height: auto; border-radius: 2px;")
+                )
+              )
+            )
           )
         ),
 
