@@ -19,6 +19,28 @@ shiny_lakes <- shiny_lakes |>
     )
   )
 
+# Mobilitätsmodus-Auswahl als eigenständiges Overlay auf beiden Karten
+# (je ein eigener inputId pro Karten-Tab; die Instanzen werden im Server
+#  synchronisiert, damit sie nicht kollidieren)
+mode_control <- function(inputId) {
+  div(
+    style = "position: absolute; bottom: 10px; left: 10px; z-index: 1000;
+             background: #FFFFFFE6; padding: 8px 12px; border-radius: 4px;
+             box-shadow: 0 1px 4px #0000004D;",
+    radioButtons(
+      inputId = inputId,
+      label = "Mobilitätsmodus:",
+      choiceNames = list(
+        tagList(icon("bicycle"), " Fahrrad"),
+        tagList(icon("person-walking"), " Zu Fuß")
+      ),
+      choiceValues = c("cycling-regular", "foot-walking"),
+      selected = "cycling-regular",
+      inline = TRUE
+    )
+  )
+}
+
 # ─────────────────────────────────────────────────────────
 # USER INTERFACE UI
 # ─────────────────────────────────────────────────────────
@@ -46,6 +68,9 @@ ui <- fluidPage(
       background-color: #CDE4E5;
       color: #00494C;
     }
+    .tabbable > .nav { display: flex; }
+    .tabbable > .nav > li { flex: 1 1 0; text-align: center; }
+    .tabbable > .nav > li > a { text-align: center; }
 
     .app-title { text-align: center; margin-bottom: 8px; }
     .app-title h1 {
@@ -60,7 +85,7 @@ ui <- fluidPage(
       margin-top: 4px;
     }
     .title-rule {
-      height: 3px; width: 280px; margin: 14px auto 0 auto; border: 0;
+      height: 3px; width: 420px; margin: 14px auto 0 auto; border: 0;
       background: linear-gradient(90deg, #00868B, #EE6363);
       border-radius: 4px;
     }
@@ -68,9 +93,6 @@ ui <- fluidPage(
     details summary { cursor: pointer; color: #006366; font-size: 14px; }
     details summary:hover { color: #00494C; }
 
-    #home.btn { background-color: #00868B !important; color: #FFFFFF !important; border-color: #00868B !important; }
-    #home.btn:hover { background-color: #006366 !important; border-color: #006366 !important; }
-    #home.btn:active, #home.btn:focus:active { background-color: #EE6363 !important; border-color: #EE6363 !important; box-shadow: none !important; }
   ")),
 
   # ── App title ─────────────────────────────────────────
@@ -81,34 +103,15 @@ ui <- fluidPage(
     div(class = "title-rule")
   ),
 
-  # ── Shared controls (above the map area) ─────
-  # Mode affects the map tabs only; the Ortsteil-Tabelle (Challenges +
-  # table) is Fahrrad-based and ignores it.
-  div(
-    style = "display: flex; align-items: flex-end; gap: 20px; margin-bottom: 10px;",
-    actionButton(
-      inputId = "home",
-      label = "Startseite",
-      icon = icon("house"),
-      style = "margin-bottom: 15px;"
-    ),
-    radioButtons(
-      inputId = "mode",
-      label = "Mobilitätsmodus:",
-      choiceNames = list(
-        tagList(icon("bicycle"), " Fahrrad"),
-        tagList(icon("person-walking"), " Zu Fuß")
-      ),
-      choiceValues = c("cycling-regular", "foot-walking"),
-      selected = "cycling-regular",
-      inline = TRUE
-    )
-  ),
-
   # ── Main layout: sidebar + maps ───────────────────────
   sidebarLayout(
     sidebarPanel(
       width = 3,
+      # start tab: Willkommen
+      conditionalPanel(
+        condition = "input.map_tab == 'start'",
+        uiOutput("start_sidebar")
+      ),
       # map1 sidebar: selected Ortsteil
       conditionalPanel(
         condition = "input.map_tab == 'map1'",
@@ -128,6 +131,11 @@ ui <- fluidPage(
       conditionalPanel(
         condition = "input.map_tab == 'lakes'",
         uiOutput("lakes_sidebar")
+      ),
+      # meta tab: Metadaten & Methodik
+      conditionalPanel(
+        condition = "input.map_tab == 'meta'",
+        h3("Metadaten und Methodik")
       )
     ),
     mainPanel(
@@ -135,27 +143,54 @@ ui <- fluidPage(
       tabsetPanel(
         id = "map_tab",
 
+        # Tab 0: Startseite
+        tabPanel(
+          title = tagList(icon("house"), " Startseite"),
+          value = "start",
+          div(
+            style = "text-align: center; padding: 20px 0 10px 0;",
+            div(
+              style = "display: flex; justify-content: center; gap: 16px; margin: 0 0 20px 0; flex-wrap: wrap;",
+              div(style = "background: #FADBD8; border: 1px solid #CD5C5C; border-radius: 4px; padding: 12px 20px; min-width: 130px;",
+                  div(style = "font-size: 30px; font-weight: bold; color: #CD5C5C;", "39"),
+                  div(style = "font-size: 13px; color: #8B3A3A;", "Badestellen")),
+              div(style = "background: #FADBD8; border: 1px solid #CD5C5C; border-radius: 4px; padding: 12px 20px; min-width: 130px;",
+                  div(style = "font-size: 30px; font-weight: bold; color: #CD5C5C;", "97"),
+                  div(style = "font-size: 13px; color: #8B3A3A;", "Ortsteile")),
+              div(style = "background: #FADBD8; border: 1px solid #CD5C5C; border-radius: 4px; padding: 12px 20px; min-width: 130px;",
+                  div(style = "font-size: 30px; font-weight: bold; color: #CD5C5C;", "3,9 Mio."),
+                  div(style = "font-size: 13px; color: #8B3A3A;", "Einwohner*innen"))
+            ),
+            img(src = "uebersicht.png", style = "max-width: 100%; height: auto; border-radius: 4px; box-shadow: 0 1px 4px #0000004D;")
+          )
+        ),
+
         # Tab 1: Einwohnerdichte & Besuchsdruck
         tabPanel(
-          title = "Ortsteilanalyse",
+          title = tagList(icon("map"), " Ortsteilanalyse"),
           value = "map1",
-          tmapOutput("density_map", height = "880px")
+          div(
+            style = "position: relative;",
+            tmapOutput("density_map", height = "880px"),
+            mode_control("mode1")
+          )
         ),
 
         # Tab 2: Iso-Rings
         tabPanel(
-          title = "Erreichbarkeitszonen",
+          title = tagList(icon("map"), " Erreichbarkeitszonen"),
           value = "map2",
           div(
             style = "position: relative;",
             tmapOutput("iso_map", height = "880px"),
+            mode_control("mode2"),
             # Custom legend: Kreisgröße = zugerechnete EW (modellbasiert)
             div(
               style = "position: absolute; top: 130px; right: 10px; z-index: 1000;
              width: 180px; background: #FFFFFFCC; padding: 10px 14px;
              border-radius: 4px; box-shadow: 0 1px 4px #0000004D;",
               p(style = "font-family: sans-serif; font-size: 12px; font-weight: normal; color: black; margin: 0 0 8px 0;",
-                "Zugerechnete EW (modellbasiert)"),
+                "Badestelle - Rang", tags$sup("1")),
               div(style = "display: flex; align-items: center;",
                 div(style = "text-align: center;",
                   div(style = "width: 12px; height: 12px; border-radius: 50%; background: #00EEEE; border: 2px solid darkslategrey; margin: 0 auto;"),
@@ -172,7 +207,7 @@ ui <- fluidPage(
 
         # Tab 3: Ranking table
         tabPanel(
-          title = "Ortsteil-Tabelle",
+          title = tagList(icon("table"), " Ortsteil-Tabelle"),
           value = "ranking",
           h3("Alle Ortsteile im Vergleich"),
           hr(),
@@ -183,7 +218,7 @@ ui <- fluidPage(
 
         # Tab 4: Badestellen-Tabelle
         tabPanel(
-          title = "Badestellen-Tabelle",
+          title = tagList(icon("table"), " Badestellen-Tabelle"),
           value = "lakes",
           h3("Alle Badestellen im Vergleich"),
           hr(),
@@ -195,7 +230,7 @@ ui <- fluidPage(
 
         # Tab 5: Metadaten
         tabPanel(
-          title = "Metadaten",
+          title = tagList(icon("database"), " Metadaten"),
           value = "meta",
           h3("Metadaten & Methodik"),
           hr(),
@@ -261,8 +296,8 @@ server <- function(input, output, session) {
     if (nzchar(api_key)) {
       tm_basemap(
         server = c(
-          "hell"      = "Stadia.AlidadeSmooth",
           "reduziert" = "Stadia.AlidadeDark",
+          "hell"      = "Stadia.AlidadeSmooth",
           "OSM-style" = "Stadia.OSMBright"
         ),
         api = api_key,
@@ -273,8 +308,8 @@ server <- function(input, output, session) {
       # Fallback if no key is available
       tm_basemap(
         server = c(
-          "hell"      = "CartoDB.PositronNoLabels",
           "reduziert" = "CartoDB.DarkMatter",
+          "hell"      = "CartoDB.PositronNoLabels",
           "OSM-style" = "OpenStreetMap"
         ),
         group = "Basiskarte",
@@ -288,14 +323,11 @@ server <- function(input, output, session) {
   # ────────────────────────
   output$density_map <- renderTmap({
 
-    # trigger re-render on home-button click to restore initial view
-    home_counter()
-
-    req(input$mode)
+    req(sel_mode())
 
     # lake ranking / bubble size depends on the selected mobility mode
     lakes <- shiny_lakes |>
-      filter(mode == input$mode) |>
+      filter(mode == sel_mode()) |>
       mutate(legend_label = "Badestelle")
 
     basemap_layer() +
@@ -422,14 +454,24 @@ server <- function(input, output, session) {
   # type "ortsteil", "bezirk" or "lake"
   selection <- reactiveVal(NULL)
 
-  # Counter to force re-render of maps on "Home" click, restoring initial view
-  home_counter <- reactiveVal(0L)
+  # Aktiver Mobilitätsmodus: je Karten-Tab eine eigene Radio-Gruppe (mode1/mode2),
+  # die hier synchronisiert werden. Für Nicht-Karten-Tabs gilt fix Fahrrad.
+  observeEvent(input$mode1, {
+    updateRadioButtons(session, "mode2", selected = input$mode1)
+  })
+  observeEvent(input$mode2, {
+    updateRadioButtons(session, "mode1", selected = input$mode2)
+  })
 
-  observeEvent(input$home, {
-    selection(NULL)
-    updateTabsetPanel(session, "map_tab", selected = "map1")
-    updateRadioButtons(session, "mode", selected = "cycling-regular")
-    home_counter(home_counter() + 1L)
+  sel_mode <- reactive({
+    tab <- input$map_tab
+    if (is.null(tab) || tab == "map1") {
+      input$mode1
+    } else if (tab == "map2") {
+      input$mode2
+    } else {
+      "cycling-regular"
+    }
   })
 
   # Klick-Handler für die density_map: nur Bezirk- und Ortsteil-Klicks
@@ -460,23 +502,36 @@ server <- function(input, output, session) {
     }
   })
 
+  # Startseiten-Sidebar: Willkommenstext + Kennzahlen
+  output$start_sidebar <- renderUI({
+    tagList(
+      h3("Willkommen"),
+      div(
+        style = "background: #E1F0F1; border: 1px solid #00868B; border-radius: 4px; padding: 12px 14px;",
+        p("Diese Anwendung zeigt, wie gut die Berliner Bevölkerung Badestellen im Stadtgebiet zu Fuß oder mit dem Fahrrad erreichen kann.",
+          style = "font-size: 17px; color: #00868B; margin-bottom: 10px;"),
+        p("Erkunden Sie die beiden thematischen Karten, vergleichen Sie die Daten in den Ortsteil- und Badestellen-Tabellen und beantworten Sie anschließend die dazugehörigen Aufgaben.",
+          style = "font-size: 17px; color: #00868B; margin-bottom: 0;")
+      )
+    )
+  })
+
   # map1 sidebar: selected Ortsteil or Bezirk
   output$sidebar_content <- renderUI({
 
     sel <- selection()
 
-    # Startup / nothing selected yet: title + instructions + two extremes
+    # Startup / nothing selected yet: title + instructions
     if (is.null(sel)) {
 
       return(tagList(
         h3("Einwohnerdichte und Erreichbarkeit von Badestellen nach Ortsteilen"),
         hr(),
-        p("Klicken Sie auf einen Ortsteil oder eine Badestelle, um Details anzuzeigen.",
-          style = "font-size: 19px; margin-top: 10px;"),
-        p("Die Auswahl des Mobilitätsmodus (Fahrrad / Zu Fuß) ändert die angezeigten Werte.",
-          style = "font-size: 19px;"),
-        p("Über die Ebenensteuerung oben links auf der Karte können Layer ein- und ausgeblendet und die Basiskarte gewechselt werden.",
-          style = "font-size: 19px; margin-top: 10px;")
+        div(
+          style = "background: #E1F0F1; border: 1px solid #00868B; border-radius: 4px; padding: 12px 14px;",
+          p("Klicken Sie auf einen Ortsteil oder eine Badestelle, um Details zu erfahren. Über die Ebenensteuerung oben links blenden Sie Layer ein und aus und wechseln die Basiskarte. Die Auswahl des Mobilitätsmodus unten links beeinflusst die Erreichbarkeit und damit die angezeigten Werte.",
+            style = "font-size: 17px; color: #00868B; margin-bottom: 0;")
+        )
       ))
     }
 
@@ -485,7 +540,7 @@ server <- function(input, output, session) {
       # Modus-Filter, damit Ranking-Infos konsistent zum aktuellen Modus sind
       lk <- shiny_lakes |>
         st_drop_geometry() |>
-        filter(lake_id == sel$id, mode == input$mode) |>
+        filter(lake_id == sel$id, mode == sel_mode()) |>
         slice_head(n = 1)
       if (nrow(lk) == 0) {
         lk <- shiny_lakes |>
@@ -538,20 +593,20 @@ server <- function(input, output, session) {
 
     # lakes reachable from this Ortsteil within 20 min (current mode):
     # a lake counts if its 20-min isochrone covers part of the Ortsteil
-    iso20 <- shiny_isochrones |> filter(minutes == 20, mode == input$mode)
+    iso20 <- shiny_isochrones |> filter(minutes == 20, mode == sel_mode())
     reachable <- iso20$lake_name[lengths(st_intersects(iso20, ot)) > 0] |>
       unique() |>
       sort()
 
     # access share depending on the selected mode
-    if (input$mode == "cycling-regular") {
+    if (sel_mode() == "cycling-regular") {
       access_pct <- ot$cycle_within_20_pct[[1]]
     } else {
       access_pct <- ot$walk_within_20_pct[[1]]
     }
     pct_txt <- format(round(access_pct, 1), big.mark = ".", decimal.mark = ",")
     ot_txt  <- ot$ortsteil[[1]]
-    mode_word <- if (input$mode == "cycling-regular") "mit Fahrrad" else "zu Fuß"
+    mode_word <- if (sel_mode() == "cycling-regular") "mit Fahrrad" else "zu Fuß"
 
     # sentence depends on the number of reachable bathing sites;
     # only the percentage number is bold + teal
@@ -602,7 +657,7 @@ server <- function(input, output, session) {
       
       h5("Badestellen-Erreichbarkeit für die Bevölkerung (anteilig)",
          tags$br(),
-         icon(if (input$mode == "cycling-regular") "bicycle" else "person-walking"),
+         icon(if (sel_mode() == "cycling-regular") "bicycle" else "person-walking"),
          tags$span(
            style = "font-size: 13px; font-weight: normal; font-style: italic",
            paste0(" maximal 20 Minuten · ", mode_word)
@@ -630,21 +685,18 @@ server <- function(input, output, session) {
   # ────────────────────────
   output$iso_map <- renderTmap({
 
-    # trigger re-render on home-button click to restore initial view
-    home_counter()
-
-    req(input$mode)
+    req(sel_mode())
 
     # rings and lakes depend on the selected mode
     rings <- shiny_iso_rings |>
-      filter(mode == input$mode) |>
+      filter(mode == sel_mode()) |>
       mutate(zone = case_when(
         minutes == "up to 5 min"  ~ "Zone A (bis zu 5 Min.)",
         minutes == "up to 10 min" ~ "Zone B (bis zu 10 Min.)",
         minutes == "up to 20 min" ~ "Zone C (bis zu 20 Min.)"
       ))
     lakes <- shiny_lakes |>
-      filter(mode == input$mode) |>
+      filter(mode == sel_mode()) |>
       mutate(
         rank_html = paste0(
           '<span style="color:#00CDCD; font-size:20px; font-weight:bold;">',
@@ -652,7 +704,7 @@ server <- function(input, output, session) {
         )
       )
 
-    if (input$mode == "cycling-regular") {
+    if (sel_mode() == "cycling-regular") {
       ring_colors <- c(
         "Zone A (bis zu 5 Min.)"  = "#8C4BBE",
         "Zone B (bis zu 10 Min.)" = "#BC96D9",
@@ -704,15 +756,6 @@ server <- function(input, output, session) {
         )
       ) +
 
-      # water background
-      tm_shape(shiny_water_background, name = "Wasserflächen") +
-      tm_polygons(
-        fill = "turquoise3",
-        fill_alpha = 0.9,
-        lwd = 0
-      ) +
-      tm_layout(frame = FALSE) +
-
       # rings (im Mittelpunkt der Karte, über den Grenzen)
       tm_shape(rings, name = "Erreichbarkeitszonen") +
       tm_polygons(
@@ -723,6 +766,16 @@ server <- function(input, output, session) {
         lwd = 0,
         popup = FALSE
       ) +
+
+      # water background (über den Zonen, damit die Zonen das Wasser
+      # nicht abdecken; Bezirke und Ortsteile liegen dahinter)
+      tm_shape(shiny_water_background, name = "Wasserflächen") +
+      tm_polygons(
+        fill = "turquoise3",
+        fill_alpha = 0.9,
+        lwd = 0
+      ) +
+      tm_layout(frame = FALSE) +
 
       # lakes (gravity-sized bubbles with rank): nur Hover + Popup, keine permanenten Labels
       tm_shape(lakes, name = "Badestellen") +
@@ -768,10 +821,10 @@ server <- function(input, output, session) {
   # ────────────────────────
   output$iso_sidebar <- renderUI({
 
-    req(input$mode)
+    req(sel_mode())
 
     rings <- shiny_iso_rings |>
-      filter(mode == input$mode) |>
+      filter(mode == sel_mode()) |>
       mutate(zone = case_when(
         minutes == "up to 5 min"  ~ "Zone A (bis zu 5 Min.)",
         minutes == "up to 10 min" ~ "Zone B (bis zu 10 Min.)",
@@ -791,18 +844,18 @@ server <- function(input, output, session) {
     rest_pop <- berlin_pop - as.numeric(pop20)
     rest_pct <- 100 - as.numeric(pct20)
 
-    mode_icon <- if (input$mode == "cycling-regular") "bicycle" else "person-walking"
-    mode_word <- if (input$mode == "cycling-regular") "mit Fahrrad" else "zu Fuß"
+    mode_icon <- if (sel_mode() == "cycling-regular") "bicycle" else "person-walking"
+    mode_word <- if (sel_mode() == "cycling-regular") "mit Fahrrad" else "zu Fuß"
 
     # Top 3 des gewählten Modus als Ranking-Einstieg
     top3 <- shiny_lakes |>
       st_drop_geometry() |>
-      filter(mode == input$mode, !is.na(rank)) |>
+      filter(mode == sel_mode(), !is.na(rank)) |>
       arrange(rank) |>
       slice_head(n = 3)
 
     # Farben der Unterstreichung = Zonenfarben der Karte (modusabhängig)
-    zone_colors <- if (input$mode == "cycling-regular") {
+    zone_colors <- if (sel_mode() == "cycling-regular") {
       c("A" = "#8C4BBE", "B" = "#BC96D9", "C" = "#D9C3E9")
     } else {
       c("A" = "#18C93E", "B" = "#5BEC7A", "C" = "#A4F4B5")
@@ -855,17 +908,17 @@ server <- function(input, output, session) {
 
       h4("Badestellen unter Druck"),
       p(tags$span(style = "font-size: 13px; font-weight: normal; font-style: italic",
-                  icon("umbrella-beach"), " Top 3 – Rang 1 = höchster Gravity-Score (modellbasiert zugeordnete Einwohner*innen)")),
+                  icon("umbrella-beach"), " Top 3 – Rang 1 = höchste Anzahl zugeordneter Einwohner*innen ",
+                  tags$sup("1"))),
 
       lapply(seq_len(nrow(top3)), function(i) {
         p(style = "margin: 2px 0; color: #15C8CF; font-weight: bold; font-size: 15px;",
           paste0("Rang ", i, ": ", top3$lake_name[i]))
       }),
 
-      p("Rang und zugerechnete Einwohner*innen sind modellbasiert (Gravity-Modell): Methodik siehe Tab 'Metadaten'.",
-  tags$br(),
-  "Gesamtes Ranking: siehe Tab 'Badestellen-Tabelle'",
-  style = "font-size: 13px; font-weight: normal; font-style: italic; margin-top: 8px;")
+      p(style = "font-size: 13px; font-weight: normal; font-style: italic; margin-top: 8px;",
+        "Fußnote", tags$br(),
+        tags$sup("1"), " Der Rang ergibt sich aus den der Badestelle zugerechneten Einwohner*innen auf Basis eines Gravity-Modells (siehe 'Metadaten', unter Methodik). Das gesamte Ranking finden Sie in der 'Badestellen-Tabelle'.")
 
     )
   })
@@ -934,14 +987,14 @@ server <- function(input, output, session) {
     }
 
     tagList(
-      h3("Challenges"),
+      h3("Aufgaben"),
       hr(),
       p("Finden Sie die Antworten – sortieren und filtern Sie in der Ortsteil-Tabelle.",
         style = "font-size: 19px; margin-top: 10px;"),
 
       section_hdr("bicycle", "Fahrrad"),
       challenge_box(
-        "Challenge 1",
+        "Aufgabe 1",
         "Welcher Ortsteil ist besonders dünn besiedelt und außerdem gut mit Badestellen versorgt?",
         "#EE6363",
         c1$ortsteil[[1]],
@@ -950,7 +1003,7 @@ server <- function(input, output, session) {
                fmt_pop2(c1$pop_total[[1]]), " EW).")
       ),
       challenge_box(
-        "Challenge 2",
+        "Aufgabe 2",
         "In welchem Ortsteil leben die meisten Menschen ohne erreichbare Badestelle(n) – per Fahrrad innerhalb von maximal 20 Minuten?",
         "#EE6363",
         c2$ortsteil[[1]],
@@ -960,14 +1013,14 @@ server <- function(input, output, session) {
 
       section_hdr("person-walking", "Zu Fuß"),
       challenge_box(
-        "Challenge 3",
+        "Aufgabe 3",
         "Für wie viele der 97 Berliner Ortsteile gibt es keine (oder praktisch keine) Badestellen, die in maximal 20 Minuten zu Fuß erreichbar sind?",
         "#EE6363",
         paste0(n_walk0_prac, " von 97 Ortsteilen"),
         paste0(n_walk0, " Ortsteile haben exakt 0 %, 2 weitere (Fennpfuhl, Reinickendorf) liegen unter 0,1 %.")
       ),
       challenge_box(
-        "Challenge 4",
+        "Aufgabe 4",
         "In welchem Ortsteil können alle Einwohner*innen zu Fuß und in maximal 20 Minuten eine Badestelle erreichen? Was ist das Besondere an diesem Ortsteil?",
         "#EE6363",
         c4$ortsteil[[1]],
@@ -977,7 +1030,7 @@ server <- function(input, output, session) {
 
       section_hdr("star", "Zusatzfrage"),
       challenge_box(
-        "Challenge 5",
+        "Aufgabe 5",
         "Die Bevölkerung welches Bezirks kann keine oder die wenigsten Badestellen erreichen (zu Fuß und/oder Fahrrad)?",
         "#EE6363",
         c5$bezirk[[1]],
@@ -1136,7 +1189,7 @@ server <- function(input, output, session) {
       arrange(rank.cyc)
 
     tagList(
-      h3("Challenges"),
+      h3("Aufgaben"),
       hr(),
       p("Finden Sie die Antworten – sortieren und filtern Sie in der Badestellen-Tabelle.",
         style = "font-size: 19px; margin-top: 10px;"),
@@ -1145,35 +1198,35 @@ server <- function(input, output, session) {
 
       section_hdr("umbrella-beach", "Badestellen"),
       challenge_box(
-        "Challenge B1",
+        "Aufgabe B1",
         "Bei welcher Badestelle ändert sich die Zahl der zugerechneten Einwohner*innen am stärksten, wenn man statt zu Fuß mit dem Fahrrad anreist?",
         "#00C5CD",
         "Strandbad Weißensee",
         "(Pankow): Dem Strandbad werden mit dem Fahrrad rund 428.000 Einwohner*innen zugerechnet, zu Fuß nur rund 36.000 – ein Unterschied von rund 392.000."
       ),
       challenge_box(
-        "Challenge B2",
+        "Aufgabe B2",
         "Welchen beiden Badestellen wird zu Fuß jeweils rund 1 % der Berliner Bevölkerung zugerechnet?",
         "#00C5CD",
         "Strandbad Halensee (Charlottenburg-Wilmersdorf) und Flussbad Gartenstraße (Treptow-Köpenick)",
         "Beiden Badestellen wird zu Fuß jeweils rund 1 % der Berliner Bevölkerung zugerechnet."
       ),
       challenge_box(
-        "Challenge B3",
+        "Aufgabe B3",
         "Welche drei Badestellen gehören sowohl mit dem Fahrrad als auch zu Fuß zu den Top 5 im Ranking?",
         "#00C5CD",
         "Strandbad Weißensee (Pankow), Strandbad Halensee (Charlottenburg-Wilmersdorf) und Strandbad Orankesee (Lichtenberg)",
         "Diese drei Badestellen liegen vergleichsweise zentral in Gebieten mit hoher Bevölkerungsdichte, weshalb ihnen in beiden Modi hohe Anteile der Berliner Bevölkerung zugerechnet werden."
       ),
       challenge_box(
-        "Challenge B4",
+        "Aufgabe B4",
         "In welchen drei Ortsteilen liegen die Badestellen, denen mit dem Fahrrad weniger als 2.500 Einwohner*innen zugerechnet werden – und was haben sie gemeinsam?",
         "#00C5CD",
         "Schmöckwitz (Treptow-Köpenick), Nikolassee (Steglitz-Zehlendorf) und Grunewald (Charlottenburg-Wilmersdorf)",
         "Die vier Badestellen (Seddinsee, Schmöckwitz, Lieper Bucht und Grunewaldturm) liegen weit am Stadtrand in großen Wald- und Seengebieten, in denen kaum Menschen wohnen – ihnen werden daher nur rund 1.000 bis 2.400 Einwohner*innen zugerechnet. Das Muster zeigt sich auf beiden Stadtseiten."
       ),
       challenge_box(
-        "Challenge B5",
+        "Aufgabe B5",
         "Zu Fuß werden zwei Badestellen gar nicht gerankt. Um welche beiden Badestellen handelt es sich?",
         "#00C5CD",
         "Lieper Bucht und Radfahrerwiese (beide Ortsteil Nikolassee, Steglitz-Zehlendorf)",
