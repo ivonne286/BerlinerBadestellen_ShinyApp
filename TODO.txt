@@ -1,5 +1,6 @@
 TODO - Bathing Sites in Berlin (Shiny-App)
 Stand: 2026-09-07 23h12m
 
+- alle Texte/Hinweise checken und konsistent machen, Dopplungen in einem Tab meiden
 - Tab 5: Metadaten korrigieren und vervollständigen (angefangen)
 - App insgesamt: aufteilen in Back- und Frontend?

@@ -5,3 +5,5 @@
 **/*.Rdata
 
 .posit/assistant
+.Renviron
+

@@ -67,6 +67,10 @@ ui <- fluidPage(
 
     details summary { cursor: pointer; color: #006366; font-size: 14px; }
     details summary:hover { color: #00494C; }
+
+    #home.btn { background-color: #00868B !important; color: #FFFFFF !important; border-color: #00868B !important; }
+    #home.btn:hover { background-color: #006366 !important; border-color: #006366 !important; }
+    #home.btn:active, #home.btn:focus:active { background-color: #EE6363 !important; border-color: #EE6363 !important; box-shadow: none !important; }
   ")),
 
   # ── App title ─────────────────────────────────────────
@@ -77,19 +81,28 @@ ui <- fluidPage(
     div(class = "title-rule")
   ),
 
-  # ── Shared mobility mode switch (above the map area) ─────
-  # Switch affects the map tabs only; the Ortsteil-Tabelle (Challenges +
+  # ── Shared controls (above the map area) ─────
+  # Mode affects the map tabs only; the Ortsteil-Tabelle (Challenges +
   # table) is Fahrrad-based and ignores it.
-  radioButtons(
-    inputId = "mode",
-    label = "Mobilitätsmodus:",
-    choiceNames = list(
-      tagList(icon("bicycle"), " Fahrrad"),
-      tagList(icon("person-walking"), " Zu Fuß")
+  div(
+    style = "display: flex; align-items: flex-end; gap: 20px; margin-bottom: 10px;",
+    actionButton(
+      inputId = "home",
+      label = "Startseite",
+      icon = icon("house"),
+      style = "margin-bottom: 15px;"
     ),
-    choiceValues = c("cycling-regular", "foot-walking"),
-    selected = "cycling-regular",
-    inline = TRUE
+    radioButtons(
+      inputId = "mode",
+      label = "Mobilitätsmodus:",
+      choiceNames = list(
+        tagList(icon("bicycle"), " Fahrrad"),
+        tagList(icon("person-walking"), " Zu Fuß")
+      ),
+      choiceValues = c("cycling-regular", "foot-walking"),
+      selected = "cycling-regular",
+      inline = TRUE
+    )
   ),
 
   # ── Main layout: sidebar + maps ───────────────────────
@@ -241,10 +254,42 @@ server <- function(input, output, session) {
     }
   })
 
+  # ── Basemap helper: Stadia with API key, fallback to CartoDB ──
+  # Three basemaps as a single radio group in the native tmap layer control.
+  basemap_layer <- reactive({
+    api_key <- Sys.getenv("STADIA_MAPS_API_KEY")
+    if (nzchar(api_key)) {
+      tm_basemap(
+        server = c(
+          "hell"      = "Stadia.AlidadeSmooth",
+          "reduziert" = "Stadia.AlidadeDark",
+          "OSM-style" = "Stadia.OSMBright"
+        ),
+        api = api_key,
+        group = "Basiskarte",
+        group.control = "radio"
+      )
+    } else {
+      # Fallback if no key is available
+      tm_basemap(
+        server = c(
+          "hell"      = "CartoDB.PositronNoLabels",
+          "reduziert" = "CartoDB.DarkMatter",
+          "OSM-style" = "OpenStreetMap"
+        ),
+        group = "Basiskarte",
+        group.control = "radio"
+      )
+    }
+  })
+
   # ────────────────────────
   # Tab 1 Map: Einwohnerdichte
   # ────────────────────────
   output$density_map <- renderTmap({
+
+    # trigger re-render on home-button click to restore initial view
+    home_counter()
 
     req(input$mode)
 
@@ -253,7 +298,7 @@ server <- function(input, output, session) {
       filter(mode == input$mode) |>
       mutate(legend_label = "Badestelle")
 
-    tm_basemap("CartoDB.PositronNoLabels") +
+    basemap_layer() +
 
       # Basis - Heatmap
       tm_shape(shiny_ew_density_raster, name = "Einwohnerdichte") +
@@ -377,6 +422,16 @@ server <- function(input, output, session) {
   # type "ortsteil", "bezirk" or "lake"
   selection <- reactiveVal(NULL)
 
+  # Counter to force re-render of maps on "Home" click, restoring initial view
+  home_counter <- reactiveVal(0L)
+
+  observeEvent(input$home, {
+    selection(NULL)
+    updateTabsetPanel(session, "map_tab", selected = "map1")
+    updateRadioButtons(session, "mode", selected = "cycling-regular")
+    home_counter(home_counter() + 1L)
+  })
+
   # Klick-Handler für die density_map: nur Bezirk- und Ortsteil-Klicks
   # ändern die Sidebar. Badestellen zeigen stattdessen ein Popup.
   observeEvent(input$density_map_shape_click$id, {
@@ -419,7 +474,9 @@ server <- function(input, output, session) {
         p("Klicken Sie auf einen Ortsteil oder eine Badestelle, um Details anzuzeigen.",
           style = "font-size: 19px; margin-top: 10px;"),
         p("Die Auswahl des Mobilitätsmodus (Fahrrad / Zu Fuß) ändert die angezeigten Werte.",
-          style = "font-size: 19px;")
+          style = "font-size: 19px;"),
+        p("Über die Ebenensteuerung oben links auf der Karte können Layer ein- und ausgeblendet und die Basiskarte gewechselt werden.",
+          style = "font-size: 19px; margin-top: 10px;")
       ))
     }
 
@@ -573,6 +630,9 @@ server <- function(input, output, session) {
   # ────────────────────────
   output$iso_map <- renderTmap({
 
+    # trigger re-render on home-button click to restore initial view
+    home_counter()
+
     req(input$mode)
 
     # rings and lakes depend on the selected mode
@@ -608,7 +668,7 @@ server <- function(input, output, session) {
       legend_title <- "Erreichbarkeitszonen zu Fuß"
     }
 
-    tm_basemap("CartoDB.Positron") +
+    basemap_layer() +
 
       # Bezirke: dickere Grenzen + deutlich sichtbare, aber nicht aufdringliche Labels
       tm_shape(shiny_bezirke, name = "Bezirke") +
