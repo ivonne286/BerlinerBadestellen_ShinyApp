@@ -77,12 +77,12 @@ ui <- fluidPage(
     div(class = "title-rule")
   ),
 
-  # ── Shared travel mode switch (above the map area) ─────
+  # ── Shared mobility mode switch (above the map area) ─────
   # Switch affects the map tabs only; the Ortsteil-Tabelle (Challenges +
   # table) is Fahrrad-based and ignores it.
   radioButtons(
     inputId = "mode",
-    label = "Verkehrsmittel:",
+    label = "Mobilitätsmodus:",
     choiceNames = list(
       tagList(icon("bicycle"), " Fahrrad"),
       tagList(icon("person-walking"), " Zu Fuß")
@@ -199,7 +199,7 @@ ui <- fluidPage(
           hr(),
           h4("Ranking der Badestellen"),
           p("Das Ranking der Badestellen basiert auf einem Gravity-Modell, das berücksichtigt, wie gut die Badestellen von der Berliner Bevölkerung aus erreichbar sind und wie stark sie dabei mit anderen erreichbaren Badestellen konkurrieren."),
-          p("Dazu wird für jeden Bevölkerungspunkt ermittelt, welche Badestellen innerhalb von 20 Minuten mit dem jeweiligen Verkehrsmittel erreichbar sind. Je kürzer die Reisezeit, desto höher das Gewicht: 5 Minuten entsprechen einem Gewicht von 1, 10 Minuten von 0,5 und 20 Minuten von 0,25."),
+          p("Dazu wird für jeden Bevölkerungspunkt ermittelt, welche Badestellen innerhalb von 20 Minuten mit dem jeweiligen Mobilitätsmodus erreichbar sind. Je kürzer die Reisezeit, desto höher das Gewicht: 5 Minuten entsprechen einem Gewicht von 1, 10 Minuten von 0,5 und 20 Minuten von 0,25."),
           p("Erreicht ein Bevölkerungspunkt mehrere Badestellen, wird seine Einwohnerzahl auf diese Badestellen verteilt. Dabei erhält eine näher gelegene Badestelle einen größeren Anteil, während zusätzliche erreichbare Badestellen den Anteil der einzelnen Badestelle verringern."),
           p("Der Gravity-Score einer Badestelle ist die Summe der auf diese Weise zugeordneten Einwohner*innen. Er beschreibt damit eine modellbasierte, distanz- und konkurrenzgewichtete Bevölkerungsgröße – und nicht die tatsächliche oder erwartete Zahl der Badegäste."),
           p("Das Ranking ergibt sich aus dem Gravity-Score: Rang 1 hat den höchsten modellbasierten Wert."),
@@ -215,7 +215,7 @@ ui <- fluidPage(
 
 
 # ─────────────────────────────────────────────────────────
-# Hover-Tooltip für Bezirke (Tab 1): "Bezirk: <Name>"
+# Hover-Tooltip für Bezirke (Tab 1): "Bezirk: <Name>"; Ortsteile ohne Hover
 # ─────────────────────────────────────────────────────────
 shiny_bezirke$bezirk_hover <- paste("Bezirk:", shiny_bezirke$bezirk)
 
@@ -248,7 +248,7 @@ server <- function(input, output, session) {
 
     req(input$mode)
 
-    # lake ranking / bubble size depends on travel mode
+    # lake ranking / bubble size depends on the selected mobility mode
     lakes <- shiny_lakes |>
       filter(mode == input$mode) |>
       mutate(legend_label = "Badestelle")
@@ -271,10 +271,10 @@ server <- function(input, output, session) {
         lwd = 0
       ) +
 
-      # Bezirke: unsichtbare Füllung (fill_alpha = 0) bleibt interaktiv,
-      # damit Bezirksnamen als Hover-Tooltip erscheinen, wenn die
-      # Ortsteilgrenzen ausgeblendet sind. Liegt UNTER den Ortsteilen.
-      tm_shape(shiny_bezirke, name = "Bezirksgrenzen") +
+      # Bezirke: unsichtbare Füllung (fill_alpha = 0) bleibt interaktiv
+      # (Bezirks-Hover), wenn die Ortsteilgrenzen ausgeblendet sind.
+      # Liegt UNTER den Ortsteilen.
+      tm_shape(shiny_bezirke, name = "Bezirke") +
       tm_polygons(
         fill = "grey95",
         fill_alpha = 0,
@@ -285,21 +285,50 @@ server <- function(input, output, session) {
         popup = FALSE,
         fill.legend = tm_legend_hide()
       ) +
+      # Bezirksnamen dauerhaft sichtbar, Farbe wie die Grenzen
+      tm_shape(mutate(shiny_bezirke, bezirk_caps = toupper(bezirk))) +
+      tm_text(
+        text = "bezirk_caps",
+        size = 0.8,
+        col = "darkslategrey",
+        group = "Bezirke", group.control = "none",
+        options = opt_tm_text(
+          just = "center",
+          halo = TRUE, halo.col = "ivory", halo.width = 0.2,
+          point_per = "feature", on_surface = TRUE
+        )
+      ) +
 
-      # Ortsteile
-      tm_shape(shiny_ortsteile, name = "Ortsteilgrenzen") +
+      # Ortsteile (Grenzen + Ortsteilnamen in EINER Layer-Gruppe:
+      # gemeinsames Häkchen "Ortsteile" im Layermenü)
+      tm_shape(shiny_ortsteile, name = "Ortsteile") +
       tm_polygons(
         fill = NULL,
         col = "indianred4",
         lwd = 0.75,
         id = "ortsteil",
-        hover = "ortsteil",
+        hover = FALSE, # kein redundantes Hover-Label; Klick bleibt aktiv
         popup = tm_popup(
           vars = c(
             "Bezirk" = "bezirk"
           ),
           # etwas Luft zwischen Label und Wert
           css = ".tmap-popup-label { padding-right: 14px; }"
+        )
+      ) +
+      # Ortsteilnamen dauerhaft sichtbar in Versalien, Farbe wie die Grenzen
+      # (on-the-fly per mutate; gleiche Gruppe wie Grenzen und ohne eigene
+      #  ID, damit kein redundanter Hover erscheint)
+      tm_shape(mutate(shiny_ortsteile, ortsteil_caps = toupper(ortsteil))) +
+      tm_text(
+        text = "ortsteil_caps",
+        size = 0.6,
+        col = "indianred4",
+        group = "Ortsteile", group.control = "none",
+        options = opt_tm_text(
+          just = "center",
+          halo = TRUE, halo.col = "ivory", halo.width = 0.18,
+          point_per = "feature", on_surface = TRUE
         )
       ) +
 
@@ -317,15 +346,23 @@ server <- function(input, output, session) {
         popup = tm_popup(
           title = "lake_name",
           vars = c(
-            "Bezirk"  = "bezirk",
+            "Bezirk"   = "bezirk",
             "Ortsteil" = "ortsteil",
-            "Details" = "link_html"
+            "Details"  = "link_html"
           ),
           format = list(
             link_html = tm_label_format(html.escape = FALSE)
           ),
-          # Luft zwischen Label und Wert
-          css = ".tmap-popup-label { padding-right: 14px; }"
+          # Luft zwischen Label und Wert, farbige Titelzeile
+          css = paste(
+            ".tmap-popup-label { padding-right: 14px; }",
+            ".tmap-popup-title { background: #00CDCD; color: #2F4F4F;",
+            "font-size: 16px; font-weight: bold; padding: 8px 12px; margin: -14px -14px 12px -14px; }",
+            ".tmap-popup-row { border-bottom: 1px solid #E1F0F1; padding: 6px 0; }",
+            ".tmap-popup-row:last-child { border-bottom: none; }",
+            "a { font-weight: bold; }",
+            "a:hover { color: #00CDCD; }"
+          )
         )
       ) +
 
@@ -334,44 +371,38 @@ server <- function(input, output, session) {
 
 
   # ────────────────────────
-  # Tab 1 Sidebar: selected Ortsteil
+  # Tab 1 Sidebar: selected Ortsteil / Bezirk / Badestelle
   # ────────────────────────
-  # Last map selection (NULL = nothing selected yet); type "ortsteil" or "bezirk"
+  # Last map selection (NULL = nothing selected yet);
+  # type "ortsteil", "bezirk" or "lake"
   selection <- reactiveVal(NULL)
 
+  # Klick-Handler für die density_map: nur Bezirk- und Ortsteil-Klicks
+  # ändern die Sidebar. Badestellen zeigen stattdessen ein Popup.
   observeEvent(input$density_map_shape_click$id, {
     clicked <- input$density_map_shape_click$id
     req(clicked)
 
-    # 1) Lake click: unique lake_id (e.g. 1c) -> Ortsteil of that lake
-    lake_hit <- shiny_lakes |>
-      filter(lake_id == clicked) |>
-      pull(ortsteil)
-    if (length(lake_hit) > 0) {
-      selection(list(type = "ortsteil", ortsteil = lake_hit[1]))
-      return()
-    }
-
-    # 2) Bezirk click: unique B_<nr> id -> nur Mini-Info in der Sidebar
+    # 1) Bezirk click: unique B_<nr> id -> nur Mini-Info in der Sidebar
     if (grepl("^B_[0-9]+$", clicked)) {
       selection(list(type = "bezirk", idx = as.integer(sub("^B_", "", clicked))))
       return()
     }
 
-    # 3) Ortsteil click: tmap replaces non-alphanumeric chars (spaces,
+    # 2) Ortsteil click: tmap replaces non-alphanumeric chars (spaces,
     #    hyphens, ...) with underscores in the feature ID; reverse that.
     #    Second pattern covers a stricter ASCII sanitization of umlauts.
-    hit <- shiny_ortsteile$ortsteil[
+    hit_ot <- shiny_ortsteile$ortsteil[
       gsub("[^[:alnum:]]", "_", shiny_ortsteile$ortsteil) == clicked
     ]
-    if (length(hit) == 0) {
-      hit <- shiny_ortsteile$ortsteil[
+    if (length(hit_ot) == 0) {
+      hit_ot <- shiny_ortsteile$ortsteil[
         gsub("[^a-zA-Z0-9]", "_", enc2utf8(shiny_ortsteile$ortsteil)) == clicked
       ]
     }
-
-    # click on something else -> keep the current selection
-    if (length(hit) > 0) selection(list(type = "ortsteil", ortsteil = hit[1]))
+    if (length(hit_ot) > 0) {
+      selection(list(type = "ortsteil", ortsteil = hit_ot[1]))
+    }
   })
 
   # map1 sidebar: selected Ortsteil or Bezirk
@@ -387,8 +418,38 @@ server <- function(input, output, session) {
         hr(),
         p("Klicken Sie auf einen Ortsteil oder eine Badestelle, um Details anzuzeigen.",
           style = "font-size: 19px; margin-top: 10px;"),
-        p("Die Verkehrsmittelauswahl (Fahrrad / Zu Fuß) ändert die angezeigten Werte.",
+        p("Die Auswahl des Mobilitätsmodus (Fahrrad / Zu Fuß) ändert die angezeigten Werte.",
           style = "font-size: 19px;")
+      ))
+    }
+
+    # Badestelle angeklickt: kompakte Info (Name, Bezirk, Ortsteil, Link)
+    if (sel$type == "lake") {
+      # Modus-Filter, damit Ranking-Infos konsistent zum aktuellen Modus sind
+      lk <- shiny_lakes |>
+        st_drop_geometry() |>
+        filter(lake_id == sel$id, mode == input$mode) |>
+        slice_head(n = 1)
+      if (nrow(lk) == 0) {
+        lk <- shiny_lakes |>
+          st_drop_geometry() |>
+          filter(lake_id == sel$id) |>
+          slice_head(n = 1)
+      }
+      return(tagList(
+        h3("Einwohnerdichte und Erreichbarkeit von Badestellen nach Ortsteilen"),
+        hr(),
+        h5("Badestelle"),
+        div(style = "font-size: 28px; font-weight: bold; color: #00868B;",
+            lk$lake_name[[1]]),
+        h5("Bezirk"),
+        div(style = "font-size: 20px; color: #00868B;",
+            lk$bezirk[[1]]),
+        h5("Ortsteil"),
+        div(style = "font-size: 20px; color: #00868B;",
+            lk$ortsteil[[1]]),
+        hr(),
+        div(style = "font-size: 17px;", HTML(lk$link_html[[1]]))
       ))
     }
 
@@ -418,14 +479,14 @@ server <- function(input, output, session) {
     ot_name <- sel$ortsteil
     ot <- shiny_ortsteile |> filter(ortsteil == ot_name)
 
-    # lakes reachable from this Ortsteil within 20 min (current travel mode):
+    # lakes reachable from this Ortsteil within 20 min (current mode):
     # a lake counts if its 20-min isochrone covers part of the Ortsteil
     iso20 <- shiny_isochrones |> filter(minutes == 20, mode == input$mode)
     reachable <- iso20$lake_name[lengths(st_intersects(iso20, ot)) > 0] |>
       unique() |>
       sort()
 
-    # access share depending on travel mode
+    # access share depending on the selected mode
     if (input$mode == "cycling-regular") {
       access_pct <- ot$cycle_within_20_pct[[1]]
     } else {
@@ -514,7 +575,7 @@ server <- function(input, output, session) {
 
     req(input$mode)
 
-    # rings and lakes depend on travel mode
+    # rings and lakes depend on the selected mode
     rings <- shiny_iso_rings |>
       filter(mode == input$mode) |>
       mutate(zone = case_when(
@@ -522,7 +583,14 @@ server <- function(input, output, session) {
         minutes == "up to 10 min" ~ "Zone B (bis zu 10 Min.)",
         minutes == "up to 20 min" ~ "Zone C (bis zu 20 Min.)"
       ))
-    lakes <- shiny_lakes |> filter(mode == input$mode)
+    lakes <- shiny_lakes |>
+      filter(mode == input$mode) |>
+      mutate(
+        rank_html = paste0(
+          '<span style="color:#00CDCD; font-size:20px; font-weight:bold;">',
+          rank_label, "</span>"
+        )
+      )
 
     if (input$mode == "cycling-regular") {
       ring_colors <- c(
@@ -542,15 +610,38 @@ server <- function(input, output, session) {
 
     tm_basemap("CartoDB.Positron") +
 
-      # rings
-      tm_shape(rings, name = "Erreichbarkeitszonen") +
-      tm_polygons(
-        fill = "zone",
-        fill.legend = tm_legend(title = legend_title),
-        fill.scale = tm_scale_categorical(values = ring_colors),
-        fill_alpha = 0.7,
-        lwd = 0,
-        popup = FALSE
+      # Bezirke: dickere Grenzen + deutlich sichtbare, aber nicht aufdringliche Labels
+      tm_shape(shiny_bezirke, name = "Bezirke") +
+      tm_borders(col = "darkslategrey", lwd = 1.6, col_alpha = 0.55) +
+      tm_shape(mutate(shiny_bezirke, bezirk_caps = toupper(bezirk))) +
+      tm_text(
+        text = "bezirk_caps",
+        size = 0.6,
+        col = "darkslategrey",
+        col_alpha = 0.8,
+        group = "Bezirke", group.control = "none",
+        options = opt_tm_text(
+          just = "center",
+          halo = TRUE, halo.col = "ivory", halo.width = 0.18,
+          point_per = "feature", on_surface = TRUE
+        )
+      ) +
+
+      # Ortsteile: dezente Grenzen + lesbare, aber zurückhaltende Labels
+      tm_shape(shiny_ortsteile, name = "Ortsteile") +
+      tm_borders(col = "indianred4", lwd = 0.5, col_alpha = 0.3) +
+      tm_shape(mutate(shiny_ortsteile, ortsteil_caps = toupper(ortsteil))) +
+      tm_text(
+        text = "ortsteil_caps",
+        size = 0.45,
+        col = "indianred4",
+        col_alpha = 0.7,
+        group = "Ortsteile", group.control = "none",
+        options = opt_tm_text(
+          just = "center",
+          halo = TRUE, halo.col = "ivory", halo.width = 0.15,
+          point_per = "feature", on_surface = TRUE
+        )
       ) +
 
       # water background
@@ -562,13 +653,18 @@ server <- function(input, output, session) {
       ) +
       tm_layout(frame = FALSE) +
 
-      # Bezirke & Ortsteile (nur Grenzen; im Layermenü ein-/ausblendbar)
-      tm_shape(shiny_ortsteile, name = "Ortsteilgrenzen") +
-      tm_borders(col = "indianred4", lwd = 0.6, col_alpha = 0.4) +
-      tm_shape(shiny_bezirke, name = "Bezirksgrenzen") +
-      tm_borders(col = "darkslategrey", lwd = 1, col_alpha = 0.55) +
+      # rings (im Mittelpunkt der Karte, über den Grenzen)
+      tm_shape(rings, name = "Erreichbarkeitszonen") +
+      tm_polygons(
+        fill = "zone",
+        fill.legend = tm_legend(title = legend_title),
+        fill.scale = tm_scale_categorical(values = ring_colors),
+        fill_alpha = 0.7,
+        lwd = 0,
+        popup = FALSE
+      ) +
 
-      # lakes (gravity-sized bubbles with rank)
+      # lakes (gravity-sized bubbles with rank): nur Hover + Popup, keine permanenten Labels
       tm_shape(lakes, name = "Badestellen") +
       tm_bubbles(
         size = "gravity_visual",
@@ -583,23 +679,26 @@ server <- function(input, output, session) {
         popup = tm_popup(
           title = "lake_name",
           vars = c(
-            "Rang"    = "rank_label",
-            "Details" = "link_html"
+            "Rang"     = "rank_html",
+            "Bezirk"   = "bezirk",
+            "Ortsteil" = "ortsteil",
+            "Details"  = "link_html"
           ),
           format = list(
+            rank_html = tm_label_format(html.escape = FALSE),
             link_html = tm_label_format(html.escape = FALSE)
           ),
-          # Luft zwischen Label und Wert
-          css = ".tmap-popup-label { padding-right: 14px; }"
+          # Gleiche Basis wie in Tab 1; Rang-Zeile über HTML-formatierten Wert hervorgehoben
+          css = paste(
+            ".tmap-popup-label { padding-right: 14px; }",
+            ".tmap-popup-title { background: #00CDCD; color: #2F4F4F;",
+            "font-size: 16px; font-weight: bold; padding: 8px 12px; margin: -14px -14px 12px -14px; }",
+            ".tmap-popup-row { border-bottom: 1px solid #E1F0F1; padding: 6px 0; }",
+            ".tmap-popup-row:last-child { border-bottom: none; }",
+            "a { font-weight: bold; }",
+            "a:hover { color: #00CDCD; }"
+          )
         )
-      ) +
-      tm_text(
-        text = "lake_name",
-        size = 0.7,
-        col = "darkslategrey",
-        options = opt_tm_text(just = "center"),
-        xmod = 0,
-        ymod = 0.1
       ) +
       tm_layout(legend.position = c("right", "top"))
   })
@@ -691,7 +790,7 @@ server <- function(input, output, session) {
       zone_row("Zone B - bis 10 Min.", pct10, pop10,   zone_colors["B"], "#00868B", "#006366"),
       zone_row("Zone C - bis 20 Min.", pct20, pop20,   zone_colors["C"], "#00868B", "#006366"),
       zone_row("mehr als 20 Min.", rest_pct, rest_pop, "#EE6363", "#EE6363", "#EE6363",
-               hint = "Bevölkerung, wohnhaft außerhalb der farbigen Zonen auf der Karte."),
+               hint = "Bevölkerung, wohnhaft außerhalb der farbigen Zonen auf der Karte. Gesamtbevölkerung Berlin laut Datenbasis (2025): 3,9 Mio. EW."),
       hr(),
 
       h4("Badestellen unter Druck"),
@@ -823,7 +922,7 @@ server <- function(input, output, session) {
         "#EE6363",
         c5$bezirk[[1]],
         paste0("0 % Zugang – weder zu Fuß noch mit dem Fahrrad (", fmt_pop2(c5$pop[[1]]),
-               " EW). Kein anderer Bezirk liegt bei beiden Verkehrsmitteln bei 0 %.")
+               " EW). Kein anderer Bezirk liegt bei beiden Mobilitätsmodi bei 0 %.")
       )
     )
   })

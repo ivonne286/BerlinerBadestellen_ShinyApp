@@ -33,3 +33,4 @@
 
 ## Regeln
 - Keine Dateien ohne vorherige Freigabe ändern – vor jeder Änderung nachfragen.
+- `TODO.txt` wird ausschließlich vom Nutzer gepflegt. Der Assistant vermerkt erledigte Aufgaben nicht selbst, sondern fragt bei Bedarf nach.
