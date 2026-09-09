@@ -145,21 +145,21 @@ ui <- fluidPage(
           div(
             style = "text-align: center; padding: 20px 0 10px 0;",
             div(
-              style = "display: flex; justify-content: center; gap: 16px; margin: 0 0 20px 0; flex-wrap: wrap;",
-              div(style = "background: #FADBD8; border: 1px solid #CD5C5C; border-radius: 4px; padding: 12px 20px; min-width: 130px;",
+              style = "display: flex; justify-content: center; gap: 16px; margin: 0 0 20px 0; flex-wrap: wrap; max-width: 900px; margin-left: auto; margin-right: auto;",
+              div(style = "flex: 1 1 0; min-width: 130px; background: #FADBD8; border: 1px solid #CD5C5C; border-radius: 4px; padding: 12px 20px;",
                   div(style = "font-size: 30px; font-weight: bold; color: #CD5C5C;", "39"),
                   div(style = "font-size: 13px; color: #8B3A3A;", "Badestellen")),
-              div(style = "background: #FADBD8; border: 1px solid #CD5C5C; border-radius: 4px; padding: 12px 20px; min-width: 130px;",
+              div(style = "flex: 1 1 0; min-width: 130px; background: #FADBD8; border: 1px solid #CD5C5C; border-radius: 4px; padding: 12px 20px;",
                   div(style = "font-size: 30px; font-weight: bold; color: #CD5C5C;", "97"),
                   div(style = "font-size: 13px; color: #8B3A3A;", "Ortsteile")),
-              div(style = "background: #FADBD8; border: 1px solid #CD5C5C; border-radius: 4px; padding: 12px 20px; min-width: 130px;",
+              div(style = "flex: 1 1 0; min-width: 130px; background: #FADBD8; border: 1px solid #CD5C5C; border-radius: 4px; padding: 12px 20px;",
                   div(style = "font-size: 30px; font-weight: bold; color: #CD5C5C;", "3,9 Mio."),
                   div(style = "font-size: 13px; color: #8B3A3A;", "Einwohner*innen"))
             ),
             div(
-              style = "display: flex; justify-content: center; gap: 24px; flex-wrap: wrap;",
+              style = "display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; max-width: 900px; margin-left: auto; margin-right: auto;",
               div(
-                style = "width: 380px; max-width: 100%;",
+                style = "flex: 1 1 0; min-width: 300px;",
                 div(style = "margin-bottom: 6px; font-size: 14px; font-weight: bold; color: #00868B;",
                     icon("bicycle"), " Fahrrad"),
                 div(
@@ -168,7 +168,7 @@ ui <- fluidPage(
                 )
               ),
               div(
-                style = "width: 380px; max-width: 100%;",
+                style = "flex: 1 1 0; min-width: 300px;",
                 div(style = "margin-bottom: 6px; font-size: 14px; font-weight: bold; color: #00868B;",
                     icon("person-walking"), " Zu Fuß"),
                 div(
@@ -184,7 +184,29 @@ ui <- fluidPage(
         tabPanel(
           title = tagList(icon("map"), " Interaktive Karte"),
           value = "karte",
-          tmapOutput("main_map", height = "880px")
+          div(
+            style = "position: relative;",
+            tmapOutput("main_map", height = "880px"),
+            # Custom legend: Kreisgröße = Druck auf Badestelle
+            # (vorläufig deaktiviert; tmap-Size-Legende oben rechts genutzt)
+            div(
+              style = "display: none; position: absolute; bottom: 40px; right: 10px; z-index: 1000;
+                       width: 180px; background: #FFFFFFCC; padding: 10px 14px;
+                       border-radius: 4px; box-shadow: 0 1px 4px #0000004D;",
+              p(style = "font-family: sans-serif; font-size: 12px; font-weight: normal; color: black; margin: 0 0 8px 0;",
+                "Badestelle – Rang"),
+              div(style = "display: flex; align-items: center;",
+                div(style = "text-align: center;",
+                  div(style = "width: 12px; height: 12px; border-radius: 50%; background: #00EEEE; border: 2px solid darkslategrey; margin: 0 auto;"),
+                  p(style = "font-size: 10px; margin: 3px 0 0 0; color: black;", "niedrig")),
+                div(style = "display: flex; align-items: center; width: 60px; margin-top: -6px;",
+                  div(style = "flex: 1; height: 2px; background: darkslategrey;"),
+                  div(style = "width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 8px solid darkslategrey;")),
+                div(style = "text-align: center;",
+                  div(style = "width: 28px; height: 28px; border-radius: 50%; background: #00EEEE; border: 2px solid darkslategrey; margin: 0 auto;"),
+                  p(style = "font-size: 10px; margin: 3px 0 0 0; color: black;", "hoch")))
+            )
+          )
         ),
 
         # Tab 2: Ranking table
@@ -312,6 +334,11 @@ server <- function(input, output, session) {
         rank_html = paste0(
           '<span style="color:#00CDCD; font-size:20px; font-weight:bold;">',
           rank_label, "</span>"
+        ),
+        rank_legend_cat = case_when(
+          rank == min(rank, na.rm = TRUE) ~ "Rang 1 (hoch)",
+          rank == max(rank, na.rm = TRUE) ~ paste0("Rang ", max(rank, na.rm = TRUE), " (niedrig)"),
+          TRUE ~ NA_character_
         )
       )
 
@@ -437,7 +464,15 @@ server <- function(input, output, session) {
       tm_shape(lakes, name = "Badestellen") +
       tm_bubbles(
         size = "gravity_visual",
-        size.legend  = tm_legend_hide(),
+        size.legend = tm_legend(
+          title = "Badestelle – Rang",
+          position = c("right", "bottom")
+        ),
+        size.scale = tm_scale_continuous(
+          ticks = c(min(lakes$gravity_visual, na.rm = TRUE),
+                    max(lakes$gravity_visual, na.rm = TRUE)),
+          labels = c("niedrig", "hoch")
+        ),
         fill = "cyan2",
         fill.legend = tm_legend_hide(),
         fill_alpha = 0.9,
@@ -467,24 +502,6 @@ server <- function(input, output, session) {
             "a:hover { color: #00CDCD; }"
           )
         )
-      ) +
-
-      # Kreis-Legende: Kreisgröße = zugerechnete EW (modellbasiert)
-      tm_add_legend(
-        type = "symbols",
-        title = "Badestelle – Rang",
-        labels = c("niedrig", "hoch"),
-        size = c(0.4, 1.2),
-        fill = "cyan2",
-        fill_alpha = 0.9,
-        col = "darkslategrey",
-        lwd = 2,
-        position = c("right", "top"),
-        bg.color = "white",
-        bg.alpha = 0.85,
-        margins = c(0.2, 0.2, 0.2, 0.2),
-        title.size = 0.9,
-        text.size = 0.8
       ) +
 
       tm_credits(

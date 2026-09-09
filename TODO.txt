@@ -1,9 +1,23 @@
 TODO - Bathing Sites in Berlin (Shiny-App)
 Stand: 2026-09-09 00h15m
 
-- margins rechts und links der app
-- Tab 6: Metadaten korrigieren und vervollständigen (angefangen)
-- App insgesamt: aufteilen in Back- und Frontend?
+1a. Margins rechts und links der app-sidebars zu Bildschirmrand
+1b. in den tabs der Tabellen stört die rechte sidebar
+2. gesamte app: font-sizes: px in em umwandeln besser?
+3. mobile-first version oder so, dass zumindest auch auf 14 zoll bildschirm gute darstellung
+4. Metadaten korrigieren und vervollständigen (angefangen)
+5. App insgesamt: aufteilen in Back- und Frontend?
+
+---
+Notizen Assistant (09.09.2026) – Einschätzung & vorgeschlagene Reihenfolge:
+1b. Rechte Sidebar in Tabellen-Tabs ausblenden – quick win, geringer Aufwand.
+1a. Margins + 3. 14-Zoll/Mobile-Layout – zusammen angehen, da beide das fixe
+    20vw/60vw/20vw-Layout betreffen; empfohlen: Sidebars schmaler, min-width
+    für Karte, optional Media Queries für schmale Viewports.
+4. Metadaten vervollständigen – machbar, aber einige Angaben fehlen dem
+    Assistant (Lizenzen, R-Version, Paketversionen, Repo-Link).
+2. px in em/rem umwandeln – optional, erst nach Layout stabil.
+5. Backend/Frontend-Aufteilung – optional, erst wenn App wächst.
 
 
 - Aufbau Metadaten/Methodik (Vorschlag):
