@@ -5,5 +5,3 @@ Stand: 2026-09-09 00h15m
 
 
 1. Metadaten & Methodik: Gravity-Modell Erklärung checken, GitHub!
-
-2. Laptop-Optimierung Layout

@@ -121,13 +121,37 @@ ui <- fluidPage(
       margin-bottom: 8px;
     }
 
+    /* Start-Tab: eigene Layout-Klasse, darf natürlich hoch sein */
+    .start-tab-layout {
+      display: block;
+      padding: 40px 0 10px 0;
+    }
+    .start-tab-layout .map-wrap > div {
+      width: 100%;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
     /* Karten-Tab: Karte + graue Infobox nebeneinander */
     .map-tab-layout {
       display: flex;
       gap: 16px;
       align-items: flex-start;
+      height: calc(100vh - 200px);      /* dynamische Höhe: Viewport abzüglich Titel+Tabs */
+      min-height: 560px;
     }
-    .map-tab-layout .map-wrap { flex: 1 1 auto; min-width: 0; }
+    .map-tab-layout .map-wrap {
+      flex: 1 1 auto;
+      min-width: 0;
+      height: 100%;
+      min-height: 560px;
+    }
+    .map-tab-layout .map-wrap .shiny-tmap,
+    .map-tab-layout .map-wrap .leaflet,
+    .map-tab-layout .map-wrap .mapboxgl-map {
+      height: 100% !important;
+      min-height: 560px;
+    }
     .iso-box {
       width: 20vw;
       flex: 0 0 20vw;
@@ -135,8 +159,27 @@ ui <- fluidPage(
       border: 1px solid #E3E3E3;
       border-radius: 4px;
       padding: 20px;
-      height: 880px;
+      height: 100%;
+      min-height: 560px;
       overflow-y: auto;
+    }
+
+    /* 15-Zoll-Laptops und kleiner: Seitbars etwas schmaler */
+    @media (max-width: 1400px) {
+      .left-sidebar { flex: 0 0 18vw; }
+      .iso-box {
+        flex: 0 0 18vw;
+        padding: 16px;
+      }
+    }
+
+    /* sehr kleine Laptops: Seitbars minimal schmaler, etwas weniger Padding */
+    @media (max-width: 1200px) {
+      .left-sidebar { flex: 0 0 16vw; }
+      .iso-box {
+        flex: 0 0 16vw;
+        padding: 14px;
+      }
     }
 
   ")),
@@ -158,7 +201,17 @@ ui <- fluidPage(
       # start tab: Willkommen
       conditionalPanel(
         condition = "input.map_tab == 'start'",
-        uiOutput("start_sidebar")
+        h3("Willkommen!"),
+        div(
+          style = "background: #E1F0F1; border: 1px solid #00868B; border-radius: 4px; padding: 12px 14px;",
+          p("Diese Anwendung zeigt, wie gut die Berliner Bevölkerung Badestellen im Stadtgebiet zu Fuß oder mit dem Fahrrad erreichen kann.",
+            tags$br(), tags$br(),
+            "Erkunden Sie die interaktive Karte, vergleichen Sie die Daten in der Ortsteil- oder Badestellen-Tabelle und lösen Sie die dazugehörigen Aufgaben.",
+            tags$br(), tags$br(),
+            "Einen schnellen Überblick zum aktuellen Zustand der Badegewässer finden Sie hier: ",
+            a("Landesamt für Gesundheit und Soziales - Liste der Badestellen", href = "https://www.berlin.de/lageso/gesundheit/gesundheitsschutz/badegewaesser/liste-der-badestellen/", target = "_blank"),
+            style = "font-size: 17px; font-weight: bold; color: #00868B; margin-bottom: 0;")
+        )
       ),
       # map sidebar: selected Ortsteil
       conditionalPanel(
@@ -201,12 +254,11 @@ ui <- fluidPage(
           title = tagList(icon("house"), " Startseite"),
           value = "start",
           div(
-            class = "map-tab-layout",
+            class = "start-tab-layout",
             div(
               class = "map-wrap",
-              style = "padding: 40px 0 10px 0;",
               div(
-                style = "width: calc(100% - 20vw - 16px);",
+                style = "width: 100%;",
               # Banner-Foto
               div(
                 style = "width: 100%; height: 260px; overflow: hidden; border-radius: 6px; margin-bottom: 24px; box-shadow: 0 1px 4px #0000004D;",
@@ -230,24 +282,31 @@ ui <- fluidPage(
                   )
                 )
               ),
-              # Kennzahlen-Boxen + Button in einer Reihe (2 links, Button, 2 rechts)
+              # Kennzahlen-Boxen + Button: 2 links, Button, 2 rechts
               div(
                 style = "display: flex; justify-content: center; align-items: stretch; gap: 20px; flex-wrap: wrap;",
-                div(style = "flex: 1 1 0; min-width: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #F1948A; border: 1px solid #E16450; border-radius: 4px; padding: 20px 12px;",
-                    div(style = "font-size: 40px; font-weight: bold; color: #006366;", "39"),
-                    div(style = "font-size: 14px; color: #006366; text-align: center;", "Badestellen")),
-                div(style = "flex: 1 1 0; min-width: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #F1948A; border: 1px solid #E16450; border-radius: 4px; padding: 20px 12px;",
-                    div(style = "font-size: 40px; font-weight: bold; color: #006366;", "97"),
-                    div(style = "font-size: 14px; color: #006366; text-align: center;", "Ortsteile")),
+                # linke Gruppe
+                div(style = "display: flex; align-items: stretch; gap: 20px; flex: 1 1 auto; justify-content: flex-end;",
+                    div(style = "flex: 1 1 0; min-width: 140px; max-width: 220px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #F1948A; border: 1px solid #E16450; border-radius: 4px; padding: 20px 12px;",
+                        div(style = "font-size: 40px; font-weight: bold; color: #006366;", "39"),
+                        div(style = "font-size: 14px; color: #006366; text-align: center;", "Badestellen")),
+                    div(style = "flex: 1 1 0; min-width: 140px; max-width: 220px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #F1948A; border: 1px solid #E16450; border-radius: 4px; padding: 20px 12px;",
+                        div(style = "font-size: 40px; font-weight: bold; color: #006366;", "97"),
+                        div(style = "font-size: 14px; color: #006366; text-align: center;", "Ortsteile"))
+                ),
+                # mittlerer Button
                 div(style = "flex: 0 0 auto; display: flex; align-items: stretch;",
                     actionButton("go_to_map", tagList(icon("map"), " Zur Karte"),
                       style = "background-color: #00868B; color: #FFFFFF; border: 1px solid #00868B; border-radius: 4px; padding: 8px 24px; font-size: 15px; font-weight: bold; height: 100%;")),
-                div(style = "flex: 1 1 0; min-width: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #F1948A; border: 1px solid #E16450; border-radius: 4px; padding: 20px 12px;",
-                    div(style = "font-size: 40px; font-weight: bold; color: #006366;", "12"),
-                    div(style = "font-size: 14px; color: #006366; text-align: center;", "Bezirke")),
-                div(style = "flex: 1 1 0; min-width: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #F1948A; border: 1px solid #E16450; border-radius: 4px; padding: 20px 12px;",
-                    div(style = "font-size: 40px; font-weight: bold; color: #006366;", "3,9 Mio."),
-                    div(style = "font-size: 14px; color: #006366; text-align: center;", "Einwohner*innen"))
+                # rechte Gruppe
+                div(style = "display: flex; align-items: stretch; gap: 20px; flex: 1 1 auto; justify-content: flex-start;",
+                    div(style = "flex: 1 1 0; min-width: 140px; max-width: 220px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #F1948A; border: 1px solid #E16450; border-radius: 4px; padding: 20px 12px;",
+                        div(style = "font-size: 40px; font-weight: bold; color: #006366;", "12"),
+                        div(style = "font-size: 14px; color: #006366; text-align: center;", "Bezirke")),
+                    div(style = "flex: 1 1 0; min-width: 140px; max-width: 220px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #F1948A; border: 1px solid #E16450; border-radius: 4px; padding: 20px 12px;",
+                        div(style = "font-size: 40px; font-weight: bold; color: #006366;", "3,9 Mio."),
+                        div(style = "font-size: 14px; color: #006366; text-align: center;", "Einwohner*innen"))
+                )
               )
             )
             )
@@ -263,7 +322,7 @@ ui <- fluidPage(
             div(
               class = "map-wrap",
               style = "position: relative;",
-              tmapOutput("main_map", height = "880px"),
+              tmapOutput("main_map", height = "100%"),
               # Custom legend: Kreisgröße = Druck auf Badestelle
               # (vorläufig deaktiviert; tmap-Size-Legende oben rechts genutzt)
               div(
@@ -733,23 +792,6 @@ server <- function(input, output, session) {
     }
   })
 
-  # Startseiten-Sidebar: Willkommenstext
-  output$start_sidebar <- renderUI({
-    tagList(
-      h3("Willkommen!"),
-      div(
-        style = "background: #E1F0F1; border: 1px solid #00868B; border-radius: 4px; padding: 12px 14px;",
-        p("Diese Anwendung zeigt, wie gut die Berliner Bevölkerung Badestellen im Stadtgebiet zu Fuß oder mit dem Fahrrad erreichen kann.",
-          tags$br(),tags$br(),
-          "Erkunden Sie die interaktive Karte, vergleichen Sie die Daten in der Ortsteil- oder Badestellen-Tabelle und lösen Sie die dazugehörigen Aufgaben.",
-          tags$br(),tags$br(),
-          "Einen schnellen Überblick zum aktuellen Zustand der Badegewässer finden Sie hier: ",
-          a("Landesamt für Gesundheit und Soziales - Liste der Badestellen", href = "https://www.berlin.de/lageso/gesundheit/gesundheitsschutz/badegewaesser/liste-der-badestellen/", target = "_blank"),
-          style = "font-size: 17px; font-weight: bold; color: #00868B; margin-bottom: 0;")
-      )
-    )
-  })
-
   # map1 sidebar: selected Ortsteil or Bezirk
   output$sidebar_content <- renderUI({
 
@@ -1134,7 +1176,7 @@ server <- function(input, output, session) {
       rownames = FALSE,
       filter = "top",
       options = list(
-        pageLength = 10,
+        pageLength = 15,
         lengthMenu = c(15, 30, 60, 90, 97),
         language = list(
           emptyTable = "Keine Daten",
