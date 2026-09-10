@@ -32,9 +32,10 @@ ui <- fluidPage(
     .left-sidebar {
       flex: 0 0 20vw;
       margin-left: 16px;
-      min-height: 880px;
-      max-height: calc(100vh - 140px);
+      min-height: 0;
+      max-height: none;
       overflow-y: auto;
+      align-self: stretch;
     }
     .main-column {
       flex: 1 1 auto;
@@ -65,6 +66,12 @@ ui <- fluidPage(
       background-color: #CDE4E5;
       color: #00494C;
     }
+    /* Button Zur Karte: Hover wie die Navigation */
+    #go_to_map:hover {
+      background-color: #CDE4E5 !important;
+      color: #00494C !important;
+      border-color: #00868B !important;
+    }
     .tabbable > .nav { display: flex; }
     .tabbable > .nav > li { flex: 1 1 0; text-align: center; }
     .tabbable > .nav > li > a { text-align: center; }
@@ -90,6 +97,30 @@ ui <- fluidPage(
     details summary { cursor: pointer; color: #006366; font-size: 14px; }
     details summary:hover { color: #00494C; }
 
+    /* Outline-Navigation im Metadaten-Tab */
+    .meta-nav ul { margin-bottom: 0; }
+    .meta-nav li { margin-bottom: 6px; }
+    .meta-nav a {
+      color: #006366;
+      text-decoration: none;
+      font-size: 14px;
+      display: block;
+      padding: 4px 8px;
+      border-radius: 3px;
+    }
+    .meta-nav a:hover {
+      background-color: #CDE4E5;
+      color: #00494C;
+      text-decoration: none;
+    }
+    .meta-section-title {
+      color: #00868B;
+      font-size: 20px;
+      font-weight: bold;
+      margin-top: 8px;
+      margin-bottom: 8px;
+    }
+
     /* Karten-Tab: Karte + graue Infobox nebeneinander */
     .map-tab-layout {
       display: flex;
@@ -114,7 +145,8 @@ ui <- fluidPage(
   div(
     class = "app-title",
     h1(icon("umbrella-beach"), "Berliner Badestellen"),
-    h4("Thematische Karte zur Erreichbarkeit"),
+    h4("Thematische Karte zur Erreichbarkeit",
+       style = "color: #EE6363;"),
     div(class = "title-rule")
   ),
 
@@ -146,7 +178,16 @@ ui <- fluidPage(
       # meta tab: Metadaten & Methodik
       conditionalPanel(
         condition = "input.map_tab == 'meta'",
-        h3("Metadaten und Methodik")
+        h3("Metadaten & Methodik"),
+        tags$nav(
+          class = "meta-nav",
+          tags$ul(
+            style = "list-style: none; padding-left: 0; margin-top: 12px;",
+            tags$li(tags$a(href = "#meta-daten", "Metadaten")),
+            tags$li(tags$a(href = "#meta-umsetzung", "Umsetzung & Code")),
+            tags$li(tags$a(href = "#meta-methodik", "Methodik"))
+          )
+        )
       )
     ),
     column(
@@ -178,29 +219,35 @@ ui <- fluidPage(
                   style = "flex: 1 1 0; min-width: 300px;",
                   div(
                     style = "border: 1px solid #00868B; border-radius: 4px; padding: 4px; background: #FFFFFF; box-shadow: 0 1px 4px #0000004D;",
-                    img(src = "start_map_shiny_cycle.png", style = "width: 100%; height: auto; border-radius: 2px;")
+                    img(src = "start_map_shiny_cycle.png", style = "width: 100%; height: auto; border-radius: 2px; display: block;")
                   )
                 ),
                 div(
                   style = "flex: 1 1 0; min-width: 300px;",
                   div(
                     style = "border: 1px solid #00868B; border-radius: 4px; padding: 4px; background: #FFFFFF; box-shadow: 0 1px 4px #0000004D;",
-                    img(src = "start_map_shiny_walk.png", style = "width: 100%; height: auto; border-radius: 2px;")
+                    img(src = "start_map_shiny_walk.png", style = "width: 100%; height: auto; border-radius: 2px; display: block;")
                   )
                 )
               ),
-              # Kennzahlen-Boxen (volle Breite, Text zentriert)
+              # Kennzahlen-Boxen + Button in einer Reihe (2 links, Button, 2 rechts)
               div(
-                style = "display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;",
+                style = "display: flex; justify-content: center; align-items: stretch; gap: 20px; flex-wrap: wrap;",
                 div(style = "flex: 1 1 0; min-width: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #F1948A; border: 1px solid #E16450; border-radius: 4px; padding: 20px 12px;",
                     div(style = "font-size: 40px; font-weight: bold; color: #006366;", "39"),
-                    div(style = "font-size: 14px; color: #8B3A3A; text-align: center;", "Badestellen")),
+                    div(style = "font-size: 14px; color: #006366; text-align: center;", "Badestellen")),
                 div(style = "flex: 1 1 0; min-width: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #F1948A; border: 1px solid #E16450; border-radius: 4px; padding: 20px 12px;",
                     div(style = "font-size: 40px; font-weight: bold; color: #006366;", "97"),
-                    div(style = "font-size: 14px; color: #8B3A3A; text-align: center;", "Ortsteile")),
+                    div(style = "font-size: 14px; color: #006366; text-align: center;", "Ortsteile")),
+                div(style = "flex: 0 0 auto; display: flex; align-items: stretch;",
+                    actionButton("go_to_map", tagList(icon("map"), " Zur Karte"),
+                      style = "background-color: #00868B; color: #FFFFFF; border: 1px solid #00868B; border-radius: 4px; padding: 8px 24px; font-size: 15px; font-weight: bold; height: 100%;")),
+                div(style = "flex: 1 1 0; min-width: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #F1948A; border: 1px solid #E16450; border-radius: 4px; padding: 20px 12px;",
+                    div(style = "font-size: 40px; font-weight: bold; color: #006366;", "12"),
+                    div(style = "font-size: 14px; color: #006366; text-align: center;", "Bezirke")),
                 div(style = "flex: 1 1 0; min-width: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #F1948A; border: 1px solid #E16450; border-radius: 4px; padding: 20px 12px;",
                     div(style = "font-size: 40px; font-weight: bold; color: #006366;", "3,9 Mio."),
-                    div(style = "font-size: 14px; color: #8B3A3A; text-align: center;", "Einwohner*innen"))
+                    div(style = "font-size: 14px; color: #006366; text-align: center;", "Einwohner*innen"))
               )
             )
             )
@@ -239,6 +286,18 @@ ui <- fluidPage(
             ),
             div(
               class = "iso-box",
+              radioButtons(
+                inputId = "map_mode",
+                label = "Mobilitätsmodus:",
+                choiceNames = list(
+                  tagList(icon("bicycle"), " Fahrrad"),
+                  tagList(icon("person-walking"), " Zu Fuß")
+                ),
+                choiceValues = c("cycling-regular", "foot-walking"),
+                selected = "cycling-regular",
+                inline = TRUE
+              ),
+              hr(),
               uiOutput("iso_sidebar")
             )
           )
@@ -269,31 +328,114 @@ ui <- fluidPage(
 
         # Tab 5: Metadaten
         tabPanel(
-          title = tagList(icon("database"), " Metadaten"),
+          title = tagList(icon("database"), " Metadaten & Methodik"),
           value = "meta",
-          h3("Metadaten & Methodik"),
+          div(
+            style = "max-width: 900px; padding-top: 14px; padding-right: 24px;",
+            div(
+              id = "meta-daten",
+            h3(class = "meta-section-title", "Metadaten"),
+            hr(),
+            h4("Autorin"),
+            p("Ivonne Giske"),
+            hr(),
+            h4("Titel"),
+            p("Berliner Badestellen - Thematische Karte zur Erreichbarkeit"),
+            hr(),
+            h4("Entstehungskontext"),
+            p("Die Anwendung wurde im Rahmen des Moduls Thematische Internetkartographie im Studiengang Geoinformation (MSc) an der Berliner Hochschule für Technik (BHT) im Sommersemester 2026 entwickelt. Aufgabe war die Erstellung einer interaktiven Webkarte zu einem selbst gewählten Thema."),
+            hr(),
+            h4("Hintergrund & Fragestellung"),
+            p("Heiße Sommer erhöhen den Bedarf an schnell erreichbaren Möglichkeiten zur Abkühlung. Initiativen wie Flussbad Berlin machen mit Badeaktionen in der Spree auf das Potenzial innerstädtischer Bademöglichkeiten und den Bedarf an weiteren Badestellen aufmerksam. Auch temporäre Projekte wie ein Schwimmbecken vor der Volksbühne zeigen den Diskussionsbedarf um zusätzliche Bademöglichkeiten in zentralen Stadtgebieten."),
+            p("Es stellt sich die Frage nach der Erreichbarkeit von Badestellen im vergleichsweise wasserreichen Berlin. Welche Ortsteile oder Bezirke schneiden besonders gut ab? Wo befinden sich „Badewüsten“? Gibt es Zusammenhänge mit der Verteilung dicht besiedelter Bereiche?"),
+            p("Die Anwendung veranschaulicht die räumliche Verteilung der 39 offiziell ausgewiesenen und nach der EU-Badegewässerrichtlinie überwachten Badestellen Berlins und deren Erreichbarkeit auf Grundlage von Einwohnerdichtedaten. Untersucht werden die Mobilitätsmodi Fahrrad und zu Fuß für drei Anreisezeiten von 5, 10 und 20 Minuten. Zusätzlich werden die Badestellen mithilfe eines Gravity-Modells gerankt (siehe Methodik). Das Ranking dient dazu, den potenziellen „Druck“ auf die einzelnen Badestellen abzubilden. Die Ergebnisse werden in einer interaktiven Karte dargestellt."),
+            hr(),
+            h4("Ziel & Ausblick"),
+            p("Die Anwendung soll eine datenbasierte Betrachtung des Themas ermöglichen und damit zur Diskussion über eine gerechte und bedarfsorientierte Verteilung von Bademöglichkeiten in Berlin beitragen. Die Ergebnisse können als Grundlage für weiterführende Untersuchungen dienen, etwa zur Frage, wie die Erreichbarkeit mit sozioökonomischen und demografischen Merkmalen der Bevölkerung zusammenhängt."),
+            hr(),
+            h4("Datenquellen"),
+            p(strong("Badestellen"), br(),
+              "Geoportal Berlin: Badegewässerqualität, Layer aa_badestellen (WFS). Verantwortliche Stelle: Landesamt für Gesundheit und Soziales Berlin. Lizenz: CC BY 4.0. Abruf: 07.09.2026. ",
+              a("Metadaten-Link", href = "https://gdi.berlin.de/geonetwork/srv/ger/catalog.search#/metadata/0b0218f9-5d32-4dba-9cc6-169768af2027", target = "_blank"), "."
+            ),
+            p(strong("Einwohnerdichte"), br(),
+              "Geoportal Berlin: Einwohnerdichte 2025 (Umweltatlas), Layer ua_einwohnerdichte_2025 (WFS). Datengeber: Amt für Statistik Berlin-Brandenburg. Lizenz: CC BY 3.0 DE. Abgerufen am 07.09.2026. ",
+              a("Metadaten-Link", href = "https://gdi.berlin.de/geonetwork/srv/ger/catalog.search#/metadata/69b82abc-377e-44d2-b598-c8feb8643e95", target = "_blank"), "."
+            ),
+            p("Datenstand 2025; Summe der Einwohnerzahlen der verwendeten Einwohnerdichte-Flächen: 3.913.490 EW (3,9 Mio.)."),
+            p(strong("Bezirke, Ortsteile"), br(),
+              "Geoportal Berlin: ALKIS Bezirke, Ortsteile Berlin (WFS). Datengeber: Senatsverwaltung für Stadtentwicklung, Bauen und Wohnen Berlin. Lizenz: Datenlizenz Deutschland – Zero – Version 2.0. Abruf: 07.09.2026. ",
+              a("Metadaten-Link", href = "https://gdi.berlin.de/geonetwork/srv/ger/catalog.search#/metadata/0a7c53a5-b29d-3f45-9734-1c811045e6c2", target = "_blank"), "."
+            ),
+            p(strong("Erreichbarkeitszonen (Isochronen)"), br(),
+              "openrouteservice des Heidelberg Institute for Geoinformation Technology (HeiGIT), mit API-Key. Abruf: 07.09.2026. ",
+              a("Webseite", href = "https://heigit.org/de/", target = "_blank"), "."
+            ),
+            p(strong("Wasserflächen"), br(),
+              "OpenStreetMap, Overpass-Abfrage in QGIS, anschließend manuell selektiert. Abruf: 07.09.2026."
+            ),
+            hr(),
+            h4("Basemaps und Anbieter"),
+            p("Stadia Maps / CARTO / OpenMapTiles / OpenStreetMap.")
+          ),
+
           hr(),
-          h4("Datenbasis & Jahr"),
-          p("Bevölkerungsraster (2025), Auflösung 100x100 m."),
-          p("Gesamtbevölkerung Berlin laut Datenbasis (2025): 3,9 Mio. (3.913.490 EW)."),
-          p("Alle Angaben zu Einwohner*innen in der App (Karten und Tabellen) beruhen auf dieser Zahl."),
+
+          div(
+            id = "meta-umsetzung",
+            h3(class = "meta-section-title", "Umsetzung & Code"),
+            hr(),
+            h4("R, R-Pakete und Versionen"),
+            p("Die Anwendung wurde als Shiny-App mit tmap und tmap.mapgl in RStudio entwickelt. Die Veröffentlichung erfolgte über RPubs."),
+            p("R Version 4.5.1 (2025-06-13)"),
+            p("shiny 1.13.0, sf 1.1.0, dplyr 1.2.1, tmap 4.4, tmap.mapgl 0.3, DT 0.34.0, leaflet 2.2.3, stars 0.7.2, tidyr 1.3.2, purrr 1.2.2, stringr 1.6.0, readr 2.2.0, ggplot2 4.0.2."),
+            hr(),
+            h4("Repository"),
+            p("github-link folgt"),
+            hr(),
+            h4("Hinweis auf KI-Unterstützung"),
+            p("Konzeption, Fragestellung, Auswahl und Durchführung der Analyse sowie die fachlichen und methodischen Entscheidungen wurden eigenständig entwickelt und getroffen. ChatGPT wurde zur Überprüfung von R-Code bei der Datenaufbereitung eingesetzt. Für die Programmierung der Shiny-App wurde der Posit Assistant mit den Modellen deepseek-v4-flash, glm-5.3-flash und kimi-k2.7-code eingesetzt.")
+          ),
+
           hr(),
-          h4("Hinweis zur Einwohnerzahl"),
-          p("Die Einwohnerzahl wird aus dem Bevölkerungsraster abgeleitet und ist keine amtliche Einwohnerzahl. Personen, die laut Raster in Wasserflächen leben, wurden ausgeschlossen."),
-          hr(),
-          h4("Methodik"),
-          p("Isochronen-Berechnung für Fahrrad und Fuß; Erreichbarkeitszonen in 5-, 10- und 20-Minuten-Ringen."),
-          hr(),
-          h4("Ranking der Badestellen"),
-          p("Das Ranking der Badestellen basiert auf einem Gravity-Modell, das berücksichtigt, wie gut die Badestellen von der Berliner Bevölkerung aus erreichbar sind und wie stark sie dabei mit anderen erreichbaren Badestellen konkurrieren."),
-          p("Dazu wird für jeden Bevölkerungspunkt ermittelt, welche Badestellen innerhalb von 20 Minuten mit dem jeweiligen Mobilitätsmodus erreichbar sind. Je kürzer die Reisezeit, desto höher das Gewicht: 5 Minuten entsprechen einem Gewicht von 1, 10 Minuten von 0,5 und 20 Minuten von 0,25."),
-          p("Erreicht ein Bevölkerungspunkt mehrere Badestellen, wird seine Einwohnerzahl auf diese Badestellen verteilt. Dabei erhält eine näher gelegene Badestelle einen größeren Anteil, während zusätzliche erreichbare Badestellen den Anteil der einzelnen Badestelle verringern."),
-          p("Der Gravity-Score einer Badestelle ist die Summe der auf diese Weise zugeordneten Einwohner*innen. Er beschreibt damit eine modellbasierte, distanz- und konkurrenzgewichtete Bevölkerungsgröße – und nicht die tatsächliche oder erwartete Zahl der Badegäste."),
-          p("Das Ranking ergibt sich aus dem Gravity-Score: Rang 1 hat den höchsten modellbasierten Wert."),
-          p("Der Pressure Share zeigt, welcher Anteil der gesamten Berliner Bevölkerung einer Badestelle nach diesem Modell zugeordnet wird. Ein Wert von beispielsweise 10 % bedeutet daher, dass dem See nach dem Modell ein Anteil von 10 % der Berliner Bevölkerung zugerechnet wird."),
-          hr(),
-          h4("Quellen"),
-          p("Badestellen, Ortsteile, Bezirke, Wasserflächen.")
+
+          div(
+            id = "meta-methodik",
+            h3(class = "meta-section-title", "Methodik"),
+            hr(),
+            h4("Datenaufbereitung"),
+            p("Die Punktgeometrien einiger Badestellen wurden geringfügig lagekorrigiert, damit sie geeignete Zugangspunkte für die anschließende Erreichbarkeitsanalyse darstellen."),
+            p("Aus den über OpenStreetMap abgefragten Wasserflächen wurden zur Orientierung lediglich die wichtigsten Berliner Gewässer, insbesondere größere Seen und Fließgewässer, ausgewählt."),
+            p("Für die Analyse der Einwohnerdichte wurden zunächst Polygone ohne Einwohner*innen (EW) sowie als Gewässer klassifizierte Flächen ausgeschlossen. Zudem wurden 15 EW aufgrund einer unplausiblen Lage innerhalb von Gewässerflächen entfernt. Aus den verbleibenden Polygonen wurde jeweils ein innerhalb des Polygons liegender Repräsentativpunkt abgeleitet. Die im Ausgangsdatensatz enthaltenen Einwohnerzahlen wurden den entsprechenden Punkten zugeordnet. Für die Karte wurden daraus ein Rasterdatensatz mit der Auflösung 100x100 m erstellt."),
+            p("Die Erreichbarkeitszonen (Polygone) von 39 Badestellen wurden pro Mobilitätsmodus (Fahrrad, Fuß) zu 3 Zonen vereinigt: bis 5, 10 und 20 Minuten."),
+            hr(),
+            h4("Ranking der Badestellen mit dem Gravity-Modell"),
+            p("Das Ranking der Badestellen basiert auf einem Gravity-Modell, das berücksichtigt, wie gut die Badestellen von der Berliner Bevölkerung aus erreichbar sind und wie stark sie dabei mit anderen erreichbaren Badestellen konkurrieren."),
+            p("Dazu wird für jeden Bevölkerungspunkt ermittelt, welche Badestellen innerhalb von 20 Minuten mit dem jeweiligen Mobilitätsmodus erreichbar sind. Je kürzer die Reisezeit, desto höher das Gewicht: 5 Minuten entsprechen einem Gewicht von 1, 10 Minuten von 0,5 und 20 Minuten von 0,25."),
+            p("Erreicht ein Bevölkerungspunkt mehrere Badestellen, wird seine Einwohnerzahl auf diese Badestellen verteilt. Dabei erhält eine näher gelegene Badestelle einen größeren Anteil, während zusätzliche erreichbare Badestellen den Anteil der einzelnen Badestelle verringern."),
+            p("Der Gravity-Score einer Badestelle ist die Summe der auf diese Weise zugeordneten Einwohner*innen. Er beschreibt damit eine modellbasierte, distanz- und konkurrenzgewichtete Bevölkerungsgröße – und nicht die tatsächliche oder erwartete Zahl der Badegäste."),
+            p("Das Ranking ergibt sich aus dem Gravity-Score: Rang 1 hat den höchsten modellbasierten Wert."),
+            p("Der Pressure Share zeigt, welcher Anteil der gesamten Berliner Bevölkerung einer Badestelle nach diesem Modell zugeordnet wird. Ein Wert von beispielsweise 10 % bedeutet daher, dass dem See nach dem Modell ein Anteil von 10 % der Berliner Bevölkerung zugerechnet wird."),
+            hr(),
+            h4("Grenzen der Analyse"),
+            p("Die Analyse berücksichtigt keine öffentlichen Verkehrsmittel wie S- und U-Bahn und bildet die tatsächliche Erreichbarkeit der Badestellen daher nur teilweise ab. Die Annahme, dass die Berliner Bevölkerung ausschließlich zu Fuß oder mit dem Fahrrad zu den Badestellen gelangt, stellt eine Vereinfachung dar. Zudem werden Personen, die von außerhalb Berlins anreisen, nicht berücksichtigt. Badestellen im angrenzenden Brandenburg bleiben ebenfalls unberücksichtigt, obwohl sie für Teile der Berliner Bevölkerung leichter erreichbar sein können als innerhalb Berlins gelegene Badestellen.")
+          ),
+
+            hr(),
+            h4("Datum der letzten Aktualisierung"),
+            p(as.character(Sys.Date())),
+            hr(),
+            div(
+              style = "text-align: center; margin-top: 16px; margin-bottom: 24px;",
+              actionButton(
+                inputId = "meta_scroll_top",
+                label = "Nach oben",
+                icon = icon("arrow-up"),
+                style = "background-color: #00868B; color: #FFFFFF; border: 1px solid #00868B; border-radius: 4px; padding: 8px 20px; font-weight: bold;",
+                onclick = "(function(btn){var el=btn.closest('.tab-pane.active, .tab-content, .main-column, .container-fluid'); while(el && el.scrollHeight <= el.clientHeight){el=el.parentElement;} if(el){el.scrollTo({top:0,behavior:'smooth'});}})(this);"
+              )
+            )
+          )
         )
       )
     )
@@ -314,6 +456,11 @@ shiny_bezirke$bezirk_click <- paste0("B_", seq_len(nrow(shiny_bezirke)))
 # SERVER
 # ─────────────────────────────────────────────────────────
 server <- function(input, output, session) {
+
+  # Button "Zur Karte" auf der Startseite wechselt zur interaktiven Karte
+  observeEvent(input$go_to_map, {
+    updateTabsetPanel(session, "map_tab", selected = "karte")
+  })
 
   # ── Basemap helper: Stadia with API key, fallback to CartoDB ──
   # Three basemaps as a single radio group in the native tmap layer control.
@@ -349,8 +496,6 @@ server <- function(input, output, session) {
   # (Layer-Reihenfolge: Dichte -> Zonen -> Wasser -> Bezirke -> Ortsteile -> Badestellen)
   # ────────────────────────
   output$main_map <- renderTmap({
-
-    req(sel_mode())
 
     # lake ranking / bubble size depends on the selected mobility mode
     lakes <- shiny_lakes |>
@@ -531,9 +676,9 @@ server <- function(input, output, session) {
 
       tm_credits(
         if (nzchar(Sys.getenv("STADIA_MAPS_API_KEY"))) {
-          "Autorin: I.Giske, 2026 · Daten: Geoportal Berlin · Basemaps: © Stadia Maps · © OpenMapTiles · © OpenStreetMap contributors"
+          "© Berliner Badestellen 2026, I.Giske · Daten: Geoportal Berlin, HeiGIT/openrouteservice · Basemaps: © Stadia Maps / © OpenMapTiles / © OpenStreetMap contributors"
         } else {
-          "Autorin: I.Giske, 2026 · Daten: Geoportal Berlin · Basemaps: © OpenStreetMap contributors © CARTO"
+          "© Berliner Badestellen 2026, I.Giske · Daten: Geoportal Berlin, HeiGIT/openrouteservice · Basemaps: © CARTO / © OpenStreetMap contributors"
         },
         position = c("right", "bottom")
       ) +
@@ -556,7 +701,7 @@ server <- function(input, output, session) {
     if (is.null(tab) || tab != "karte") {
       "cycling-regular"
     } else {
-      input$map_mode
+      if (is.null(input$map_mode)) "cycling-regular" else input$map_mode
     }
   })
 
@@ -595,9 +740,12 @@ server <- function(input, output, session) {
       div(
         style = "background: #E1F0F1; border: 1px solid #00868B; border-radius: 4px; padding: 12px 14px;",
         p("Diese Anwendung zeigt, wie gut die Berliner Bevölkerung Badestellen im Stadtgebiet zu Fuß oder mit dem Fahrrad erreichen kann.",
-          style = "font-size: 17px; color: #00868B; margin-bottom: 10px;"),
-        p("Erkunden Sie die thematische Karte, vergleichen Sie die Daten in den Ortsteil- und Badestellen-Tabellen und beantworten Sie anschließend die dazugehörigen Aufgaben.",
-          style = "font-size: 17px; color: #00868B; margin-bottom: 0;")
+          tags$br(),tags$br(),
+          "Erkunden Sie die interaktive Karte, vergleichen Sie die Daten in der Ortsteil- oder Badestellen-Tabelle und lösen Sie die dazugehörigen Aufgaben.",
+          tags$br(),tags$br(),
+          "Einen schnellen Überblick zum aktuellen Zustand der Badegewässer finden Sie hier: ",
+          a("Landesamt für Gesundheit und Soziales - Liste der Badestellen", href = "https://www.berlin.de/lageso/gesundheit/gesundheitsschutz/badegewaesser/liste-der-badestellen/", target = "_blank"),
+          style = "font-size: 17px; font-weight: bold; color: #00868B; margin-bottom: 0;")
       )
     )
   })
@@ -741,8 +889,6 @@ server <- function(input, output, session) {
   # ────────────────────────
   output$iso_sidebar <- renderUI({
 
-    req(sel_mode())
-
     rings <- shiny_iso_rings |>
       filter(mode == sel_mode()) |>
       mutate(zone = case_when(
@@ -814,19 +960,6 @@ server <- function(input, output, session) {
     }
 
     tagList(
-      radioButtons(
-        inputId = "map_mode",
-        label = "Mobilitätsmodus:",
-        choiceNames = list(
-          tagList(icon("bicycle"), " Fahrrad"),
-          tagList(icon("person-walking"), " Zu Fuß")
-        ),
-        choiceValues = c("cycling-regular", "foot-walking"),
-        selected = isolate(if (is.null(input$map_mode)) "cycling-regular" else input$map_mode),
-        inline = TRUE
-      ),
-      hr(),
-      
       h3("Erreichbarkeitszonen um die Berliner Badestellen"),
 
       p(style = "font-size: 13px; font-weight: normal; font-style: italic",
@@ -1170,6 +1303,10 @@ server <- function(input, output, session) {
       )
     )
   })
+
+  # Karte soll auch rendern, wenn der Karten-Tab noch nicht aktiv ist,
+  # damit der Wechsel auf "Interaktive Karte" schneller wirkt.
+  outputOptions(output, "main_map", suspendWhenHidden = FALSE)
 }
 
 shinyApp(ui, server)

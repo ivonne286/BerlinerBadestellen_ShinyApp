@@ -4,39 +4,6 @@ Stand: 2026-09-09 00h15m
 ---
 
 
+1. Metadaten & Methodik: Gravity-Modell Erklärung checken, GitHub!
 
-
-Notizen Assistant (09.09.2026) – Einschätzung & vorgeschlagene Reihenfolge:
-
-
-2. Ladezeit Karte/Tabelle verkürzen, welche Optionen? liegt es tatsächlich am Einwohnerdichte-Raster?
-
-
-
-4. Metadaten vervollständigen – machbar, aber einige Angaben fehlen dem
-    Assistant (Lizenzen, R-Version, Paketversionen, Repo-Link).
-2. px in em/rem umwandeln – optional, erst nach Layout stabil.
-5. Backend/Frontend-Aufteilung – optional, erst wenn App wächst.
-
-
-(zu 4. Aufbau Metadaten/Methodik (Vorschlag):
-    Autor: xyz
-    Titel/Projekt
-    Datenstand
-    Datenquellen
-    Datenlizenzen
-    Basemaps und jeweilige Anbieter
-    Stadia Maps / CARTO / OpenMapTiles / OpenStreetMap
-    verwendete R-Version
-    verwendete R-Pakete + Versionen
-    Shiny/tmap/RStudio
-    ggf. Quellcode/Repository
-    ggf. Hinweis auf Posit Assist/KI-Unterstützung
-    Datum der letzten Aktualisierung)
-    
-Ideen:
-======
-
-- Hinweis auf Startseite, für einen schnellen Überblick über den aktuellen Gewässerzustand, Link zu dieser Seite: LaGeSo: https://www.berlin.de/lageso/gesundheit/gesundheitsschutz/badegewaesser/liste-der-badestellen/
-
-- 
+2. Laptop-Optimierung Layout
