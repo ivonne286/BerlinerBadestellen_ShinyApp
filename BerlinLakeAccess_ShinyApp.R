@@ -28,20 +28,21 @@ ui <- fluidPage(
   # tab styling: teal background, coral accent on active tab
   tags$style(HTML("
     .container-fluid > .row { display: flex; }
-    /* Layout: zwei Sidebars à 20 %, Hauptbereich 60 % */
-    .left-sidebar, .iso-sidebar {
-      width: 20vw;
+    /* Layout: linke Sidebar 20 %, Hauptbereich füllt den Rest */
+    .left-sidebar {
+      flex: 0 0 20vw;
+      margin-left: 16px;
       min-height: 880px;
       max-height: calc(100vh - 140px);
       overflow-y: auto;
     }
     .main-column {
-      width: 60vw;
+      flex: 1 1 auto;
+      min-width: 0;
     }
 
     /* Einheitlicher Sidebar-Style (Hintergrund, Rahmen, Unterkante) */
-    .left-sidebar,
-    .iso-sidebar {
+    .left-sidebar {
       background-color: #F5F5F5;
       border: 1px solid #E3E3E3;
       border-radius: 4px;
@@ -89,6 +90,24 @@ ui <- fluidPage(
     details summary { cursor: pointer; color: #006366; font-size: 14px; }
     details summary:hover { color: #00494C; }
 
+    /* Karten-Tab: Karte + graue Infobox nebeneinander */
+    .map-tab-layout {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    .map-tab-layout .map-wrap { flex: 1 1 auto; min-width: 0; }
+    .iso-box {
+      width: 20vw;
+      flex: 0 0 20vw;
+      background-color: #F5F5F5;
+      border: 1px solid #E3E3E3;
+      border-radius: 4px;
+      padding: 20px;
+      height: 880px;
+      overflow-y: auto;
+    }
+
   ")),
 
   # ── App title ─────────────────────────────────────────
@@ -104,7 +123,6 @@ ui <- fluidPage(
     column(
       width = 2,
       class = "left-sidebar",
-      style = "width: 20vw;",
       # start tab: Willkommen
       conditionalPanel(
         condition = "input.map_tab == 'start'",
@@ -134,7 +152,6 @@ ui <- fluidPage(
     column(
       width = 8,
       class = "main-column",
-      style = "width: 60vw;",
       tabsetPanel(
         id = "map_tab",
 
@@ -143,39 +160,49 @@ ui <- fluidPage(
           title = tagList(icon("house"), " Startseite"),
           value = "start",
           div(
-            style = "text-align: center; padding: 20px 0 10px 0;",
+            class = "map-tab-layout",
             div(
-              style = "display: flex; justify-content: center; gap: 16px; margin: 0 0 20px 0; flex-wrap: wrap; max-width: 900px; margin-left: auto; margin-right: auto;",
-              div(style = "flex: 1 1 0; min-width: 130px; background: #FADBD8; border: 1px solid #CD5C5C; border-radius: 4px; padding: 12px 20px;",
-                  div(style = "font-size: 30px; font-weight: bold; color: #CD5C5C;", "39"),
-                  div(style = "font-size: 13px; color: #8B3A3A;", "Badestellen")),
-              div(style = "flex: 1 1 0; min-width: 130px; background: #FADBD8; border: 1px solid #CD5C5C; border-radius: 4px; padding: 12px 20px;",
-                  div(style = "font-size: 30px; font-weight: bold; color: #CD5C5C;", "97"),
-                  div(style = "font-size: 13px; color: #8B3A3A;", "Ortsteile")),
-              div(style = "flex: 1 1 0; min-width: 130px; background: #FADBD8; border: 1px solid #CD5C5C; border-radius: 4px; padding: 12px 20px;",
-                  div(style = "font-size: 30px; font-weight: bold; color: #CD5C5C;", "3,9 Mio."),
-                  div(style = "font-size: 13px; color: #8B3A3A;", "Einwohner*innen"))
-            ),
-            div(
-              style = "display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; max-width: 900px; margin-left: auto; margin-right: auto;",
+              class = "map-wrap",
+              style = "padding: 40px 0 10px 0;",
               div(
-                style = "flex: 1 1 0; min-width: 300px;",
-                div(style = "margin-bottom: 6px; font-size: 14px; font-weight: bold; color: #00868B;",
-                    icon("bicycle"), " Fahrrad"),
+                style = "width: calc(100% - 20vw - 16px);",
+              # Banner-Foto
+              div(
+                style = "width: 100%; height: 260px; overflow: hidden; border-radius: 6px; margin-bottom: 24px; box-shadow: 0 1px 4px #0000004D;",
+                img(src = "start_foto_lake.png", style = "width: 100%; height: 100%; object-fit: cover; display: block;")
+              ),
+              # Karten-PNGs
+              div(
+                style = "display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; margin: 0 0 24px 0;",
                 div(
-                  style = "border: 1px solid #00868B; border-radius: 4px; padding: 4px; background: #FFFFFF; box-shadow: 0 1px 4px #0000004D;",
-                  img(src = "start_map_shiny_cycle.png", style = "width: 100%; height: auto; border-radius: 2px;")
+                  style = "flex: 1 1 0; min-width: 300px;",
+                  div(
+                    style = "border: 1px solid #00868B; border-radius: 4px; padding: 4px; background: #FFFFFF; box-shadow: 0 1px 4px #0000004D;",
+                    img(src = "start_map_shiny_cycle.png", style = "width: 100%; height: auto; border-radius: 2px;")
+                  )
+                ),
+                div(
+                  style = "flex: 1 1 0; min-width: 300px;",
+                  div(
+                    style = "border: 1px solid #00868B; border-radius: 4px; padding: 4px; background: #FFFFFF; box-shadow: 0 1px 4px #0000004D;",
+                    img(src = "start_map_shiny_walk.png", style = "width: 100%; height: auto; border-radius: 2px;")
+                  )
                 )
               ),
+              # Kennzahlen-Boxen (volle Breite, Text zentriert)
               div(
-                style = "flex: 1 1 0; min-width: 300px;",
-                div(style = "margin-bottom: 6px; font-size: 14px; font-weight: bold; color: #00868B;",
-                    icon("person-walking"), " Zu Fuß"),
-                div(
-                  style = "border: 1px solid #00868B; border-radius: 4px; padding: 4px; background: #FFFFFF; box-shadow: 0 1px 4px #0000004D;",
-                  img(src = "start_map_shiny_walk.png", style = "width: 100%; height: auto; border-radius: 2px;")
-                )
+                style = "display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;",
+                div(style = "flex: 1 1 0; min-width: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #F1948A; border: 1px solid #E16450; border-radius: 4px; padding: 20px 12px;",
+                    div(style = "font-size: 40px; font-weight: bold; color: #006366;", "39"),
+                    div(style = "font-size: 14px; color: #8B3A3A; text-align: center;", "Badestellen")),
+                div(style = "flex: 1 1 0; min-width: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #F1948A; border: 1px solid #E16450; border-radius: 4px; padding: 20px 12px;",
+                    div(style = "font-size: 40px; font-weight: bold; color: #006366;", "97"),
+                    div(style = "font-size: 14px; color: #8B3A3A; text-align: center;", "Ortsteile")),
+                div(style = "flex: 1 1 0; min-width: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #F1948A; border: 1px solid #E16450; border-radius: 4px; padding: 20px 12px;",
+                    div(style = "font-size: 40px; font-weight: bold; color: #006366;", "3,9 Mio."),
+                    div(style = "font-size: 14px; color: #8B3A3A; text-align: center;", "Einwohner*innen"))
               )
+            )
             )
           )
         ),
@@ -185,26 +212,34 @@ ui <- fluidPage(
           title = tagList(icon("map"), " Interaktive Karte"),
           value = "karte",
           div(
-            style = "position: relative;",
-            tmapOutput("main_map", height = "880px"),
-            # Custom legend: Kreisgröße = Druck auf Badestelle
-            # (vorläufig deaktiviert; tmap-Size-Legende oben rechts genutzt)
+            class = "map-tab-layout",
             div(
-              style = "display: none; position: absolute; bottom: 40px; right: 10px; z-index: 1000;
-                       width: 180px; background: #FFFFFFCC; padding: 10px 14px;
-                       border-radius: 4px; box-shadow: 0 1px 4px #0000004D;",
-              p(style = "font-family: sans-serif; font-size: 12px; font-weight: normal; color: black; margin: 0 0 8px 0;",
-                "Badestelle – Rang"),
-              div(style = "display: flex; align-items: center;",
-                div(style = "text-align: center;",
-                  div(style = "width: 12px; height: 12px; border-radius: 50%; background: #00EEEE; border: 2px solid darkslategrey; margin: 0 auto;"),
-                  p(style = "font-size: 10px; margin: 3px 0 0 0; color: black;", "niedrig")),
-                div(style = "display: flex; align-items: center; width: 60px; margin-top: -6px;",
-                  div(style = "flex: 1; height: 2px; background: darkslategrey;"),
-                  div(style = "width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 8px solid darkslategrey;")),
-                div(style = "text-align: center;",
-                  div(style = "width: 28px; height: 28px; border-radius: 50%; background: #00EEEE; border: 2px solid darkslategrey; margin: 0 auto;"),
-                  p(style = "font-size: 10px; margin: 3px 0 0 0; color: black;", "hoch")))
+              class = "map-wrap",
+              style = "position: relative;",
+              tmapOutput("main_map", height = "880px"),
+              # Custom legend: Kreisgröße = Druck auf Badestelle
+              # (vorläufig deaktiviert; tmap-Size-Legende oben rechts genutzt)
+              div(
+                style = "display: none; position: absolute; bottom: 40px; right: 10px; z-index: 1000;
+                         width: 180px; background: #FFFFFFCC; padding: 10px 14px;
+                         border-radius: 4px; box-shadow: 0 1px 4px #0000004D;",
+                p(style = "font-family: sans-serif; font-size: 12px; font-weight: normal; color: black; margin: 0 0 8px 0;",
+                  "Badestelle – Rang"),
+                div(style = "display: flex; align-items: center;",
+                  div(style = "text-align: center;",
+                    div(style = "width: 12px; height: 12px; border-radius: 50%; background: #00EEEE; border: 2px solid darkslategrey; margin: 0 auto;"),
+                    p(style = "font-size: 10px; margin: 3px 0 0 0; color: black;", "niedrig")),
+                  div(style = "display: flex; align-items: center; width: 60px; margin-top: -6px;",
+                    div(style = "flex: 1; height: 2px; background: darkslategrey;"),
+                    div(style = "width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 8px solid darkslategrey;")),
+                  div(style = "text-align: center;",
+                    div(style = "width: 28px; height: 28px; border-radius: 50%; background: #00EEEE; border: 2px solid darkslategrey; margin: 0 auto;"),
+                    p(style = "font-size: 10px; margin: 3px 0 0 0; color: black;", "hoch")))
+              )
+            ),
+            div(
+              class = "iso-box",
+              uiOutput("iso_sidebar")
             )
           )
         ),
@@ -260,15 +295,6 @@ ui <- fluidPage(
           h4("Quellen"),
           p("Badestellen, Ortsteile, Bezirke, Wasserflächen.")
         )
-      )
-    ),
-    column(
-      width = 2,
-      class = "iso-sidebar",
-      style = "width: 20vw;",
-      conditionalPanel(
-        condition = "input.map_tab == 'karte'",
-        uiOutput("iso_sidebar")
       )
     )
   )
@@ -395,8 +421,7 @@ server <- function(input, output, session) {
       # Wasser (über den Zonen, damit die Zonen das Wasser nicht abdecken)
       tm_shape(shiny_water_background, name = "Wasserflächen") +
       tm_polygons(
-        fill = "turquoise3",
-        fill_alpha = 0.8,
+        fill = "turquoise4",
         lwd = 0
       ) +
 
@@ -563,15 +588,15 @@ server <- function(input, output, session) {
     }
   })
 
-  # Startseiten-Sidebar: Willkommenstext + Kennzahlen
+  # Startseiten-Sidebar: Willkommenstext
   output$start_sidebar <- renderUI({
     tagList(
-      h3("Willkommen"),
+      h3("Willkommen!"),
       div(
         style = "background: #E1F0F1; border: 1px solid #00868B; border-radius: 4px; padding: 12px 14px;",
         p("Diese Anwendung zeigt, wie gut die Berliner Bevölkerung Badestellen im Stadtgebiet zu Fuß oder mit dem Fahrrad erreichen kann.",
           style = "font-size: 17px; color: #00868B; margin-bottom: 10px;"),
-        p("Erkunden Sie die beiden thematischen Karten, vergleichen Sie die Daten in den Ortsteil- und Badestellen-Tabellen und beantworten Sie anschließend die dazugehörigen Aufgaben.",
+        p("Erkunden Sie die thematische Karte, vergleichen Sie die Daten in den Ortsteil- und Badestellen-Tabellen und beantworten Sie anschließend die dazugehörigen Aufgaben.",
           style = "font-size: 17px; color: #00868B; margin-bottom: 0;")
       )
     )
@@ -977,7 +1002,7 @@ server <- function(input, output, session) {
       filter = "top",
       options = list(
         pageLength = 10,
-        lengthMenu = c(10, 25, 50, 97),
+        lengthMenu = c(15, 30, 60, 90, 97),
         language = list(
           emptyTable = "Keine Daten",
           search = "Suchen:",
@@ -1025,7 +1050,7 @@ server <- function(input, output, session) {
       filter = "top",
       options = list(
         pageLength = 15,
-        lengthMenu = c(15, 25, 39),
+        lengthMenu = c(15, 30, 39),
         language = list(
           emptyTable = "Keine Daten",
           search = "Suchen:",
@@ -1148,4 +1173,5 @@ server <- function(input, output, session) {
 }
 
 shinyApp(ui, server)
+
 
