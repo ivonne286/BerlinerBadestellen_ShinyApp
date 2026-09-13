@@ -213,9 +213,29 @@ ui <- fluidPage(
             style = "font-size: 17px; font-weight: bold; color: #00868B; margin-bottom: 0;")
         )
       ),
-      # map sidebar: selected Ortsteil
+      # map sidebar: Überschrift + Karten-Einstellungen (statisch),
+      # darunter Dropdowns und Details je nach Auswahl
       conditionalPanel(
         condition = "input.map_tab == 'karte'",
+        h3("Einwohnerdichte und Erreichbarkeit von Badestellen nach Ortsteilen"),
+        hr(),
+        radioButtons(
+          inputId = "map_mode",
+          label = "Mobilitätsmodus:",
+          choiceNames = list(
+            tagList(icon("bicycle"), " Fahrrad"),
+            tagList(icon("person-walking"), " Zu Fuß")
+          ),
+          choiceValues = c("cycling-regular", "foot-walking"),
+          selected = "cycling-regular",
+          inline = TRUE
+        ),
+        actionButton(
+          inputId = "reset_map",
+          label = tagList(icon("rotate-left"), " Ansicht zurücksetzen"),
+          style = "width: 100%; margin-top: 8px; background-color: #FFFFFF; color: #006366; border: 1px solid #00868B; border-radius: 4px; padding: 6px 12px; font-weight: bold;"
+        ),
+        hr(),
         uiOutput("sidebar_content")
       ),
       # ranking tab: challenges
@@ -345,18 +365,6 @@ ui <- fluidPage(
             ),
             div(
               class = "iso-box",
-              radioButtons(
-                inputId = "map_mode",
-                label = "Mobilitätsmodus:",
-                choiceNames = list(
-                  tagList(icon("bicycle"), " Fahrrad"),
-                  tagList(icon("person-walking"), " Zu Fuß")
-                ),
-                choiceValues = c("cycling-regular", "foot-walking"),
-                selected = "cycling-regular",
-                inline = TRUE
-              ),
-              hr(),
               uiOutput("iso_sidebar")
             )
           )
@@ -379,7 +387,7 @@ ui <- fluidPage(
           value = "lakes",
           h3("Alle Badestellen im Vergleich"),
           hr(),
-          p("Hinweis: 39 offizielle, von der EU überwachte Badestellen. Rang und zugerechnete Einwohner*innen (EW) sind modellbasiert (Gravity-Modell, Methodik siehe Tab Metadaten); Prozentwerte auf 1 Nachkommastelle gerundet, Personenzahlen gerundet auf ganze Personen.",
+          p("Hinweis: 39 offizielle, EU-überwachte Badestellen. Rang und zugerechnete Einwohner*innen (EW) sind modellbasiert (Gravity-Modell, Methodik siehe Tab Metadaten); Prozentwerte auf 1 Nachkommastelle, Personenzahlen auf ganze Personen gerundet.",
             style = "font-size: 13px; font-weight: normal; font-style: italic"),
           hr(),
           DT::dataTableOutput("lakes_table")
@@ -447,13 +455,14 @@ ui <- fluidPage(
             h4("R, R-Pakete und Versionen"),
             p("Die Anwendung wurde als Shiny-App mit tmap und tmap.mapgl in RStudio entwickelt. Die Veröffentlichung erfolgte über RPubs."),
             p("R Version 4.5.1 (2025-06-13)"),
-            p("shiny 1.13.0, sf 1.1.0, dplyr 1.2.1, tmap 4.4, tmap.mapgl 0.3, DT 0.34.0, leaflet 2.2.3, stars 0.7.2, tidyr 1.3.2, purrr 1.2.2, stringr 1.6.0, readr 2.2.0, ggplot2 4.0.2."),
+            p("shiny 1.13.0, sf 1.1.0, dplyr 1.2.1, tmap 4.4, tmap.mapgl 0.3, DT 0.34.0, stars 0.7.2."),
+            p("Für das Hilfsdiagramm im Badestellen-Tab zusätzlich: tidyr 1.3.2, ggplot2 4.0.2."),
             hr(),
             h4("Repository"),
             p("github-link folgt"),
             hr(),
             h4("Hinweis auf KI-Unterstützung"),
-            p("Konzeption, Fragestellung, Auswahl und Durchführung der Analyse sowie die fachlichen und methodischen Entscheidungen wurden eigenständig entwickelt und getroffen. ChatGPT wurde zur Überprüfung von R-Code bei der Datenaufbereitung eingesetzt. Für die Programmierung der Shiny-App wurde der Posit Assistant mit den Modellen deepseek-v4-flash, glm-5.3-flash und kimi-k2.7-code eingesetzt.")
+            p("Konzeption, Fragestellung, Auswahl und Durchführung der Analyse sowie die fachlichen und methodischen Entscheidungen wurden eigenständig entwickelt und getroffen. ChatGPT wurde zur Überprüfung von R-Code bei der Datenaufbereitung eingesetzt. Für die Programmierung der Shiny-App wurde der Posit Assistant mit den Modellen deepseek-v4.1-flash, glm-5.3-flash und kimi-k2.7-code eingesetzt.")
           ),
 
           hr(),
@@ -521,6 +530,19 @@ server <- function(input, output, session) {
     updateTabsetPanel(session, "map_tab", selected = "karte")
   })
 
+  # Zähler für das Zurücksetzen: neu hochgezählt -> Karten-Widget rendert neu
+  # (setzt Basiskarte, Layer-Häkchen, Zoom/Ausschnitt und Popups zurück)
+  reset_key <- reactiveVal(0)
+
+  # Button "Ansicht zurücksetzen": Zustand wie beim Erstaufruf des Tabs
+  observeEvent(input$reset_map, {
+    selection(NULL)
+    updateSelectInput(session, "bezirk_select", selected = "")
+    updateSelectInput(session, "ortsteil_select", selected = "")
+    updateRadioButtons(session, "map_mode", selected = "cycling-regular")
+    reset_key(reset_key() + 1)
+  })
+
   # ── Basemap helper: Stadia with API key, fallback to CartoDB ──
   # Three basemaps as a single radio group in the native tmap layer control.
   basemap_layer <- reactive({
@@ -555,6 +577,8 @@ server <- function(input, output, session) {
   # (Layer-Reihenfolge: Dichte -> Zonen -> Wasser -> Bezirke -> Ortsteile -> Badestellen)
   # ────────────────────────
   output$main_map <- renderTmap({
+
+    reset_key()   # Abhängigkeit: erzwingt Neu-Rendern beim Zurücksetzen
 
     # lake ranking / bubble size depends on the selected mobility mode
     lakes <- shiny_lakes |>
@@ -792,20 +816,94 @@ server <- function(input, output, session) {
     }
   })
 
-  # map1 sidebar: selected Ortsteil or Bezirk
+  # ────────────────────────
+  # Bezirk-/Ortsteil-Auswahl aus der Sidebar (ohne Kartenklick)
+  # ────────────────────────
+  # Werte, die sich aus der aktuellen Auswahl für die Dropdowns ergeben.
+  # Dient zugleich als Rückkopplungsschutz: Dropdown-Ereignisse, die nur
+  # aus dem Neu-Rendern der Sidebar stammen, werden in den Observern ignoriert.
+  implied_selection <- reactive({
+    sel <- selection()
+    if (is.null(sel)) {
+      return(list(bezirk = "", ortsteil = ""))
+    }
+    if (sel$type == "bezirk") {
+      return(list(bezirk = shiny_bezirke$bezirk[sel$idx], ortsteil = ""))
+    }
+    list(
+      bezirk = shiny_ortsteile$bezirk[shiny_ortsteile$ortsteil == sel$ortsteil][1],
+      ortsteil = sel$ortsteil
+    )
+  })
+
+  observeEvent(input$bezirk_select, {
+    req(nzchar(input$bezirk_select))
+    if (identical(input$bezirk_select, implied_selection()$bezirk)) return()
+    idx <- which(shiny_bezirke$bezirk == input$bezirk_select)
+    if (length(idx) > 0) selection(list(type = "bezirk", idx = idx[1]))
+  })
+
+  observeEvent(input$ortsteil_select, {
+    req(nzchar(input$ortsteil_select))
+    if (identical(input$ortsteil_select, implied_selection()$ortsteil)) return()
+    hit <- shiny_ortsteile$ortsteil[shiny_ortsteile$ortsteil == input$ortsteil_select]
+    if (length(hit) > 0) selection(list(type = "ortsteil", ortsteil = hit[1]))
+  })
+
+  # Klick auf die Bezirk-Zeile in der Ortsteil-Ansicht
+  observeEvent(input$bezirk_from_ortsteil, {
+    sel <- selection()
+    req(sel, identical(sel$type, "ortsteil"))
+    bz_name <- shiny_ortsteile$bezirk[shiny_ortsteile$ortsteil == sel$ortsteil][1]
+    idx <- which(shiny_bezirke$bezirk == bz_name)
+    if (length(idx) > 0) selection(list(type = "bezirk", idx = idx[1]))
+  })
+
+  # map1 sidebar: Überschrift und Dropdowns immer oben, darunter die Details
   output$sidebar_content <- renderUI({
 
     sel <- selection()
+    imp <- implied_selection()
 
-    # Startup / nothing selected yet: title + instructions
+    # Ortsteil-Liste: auf den gewählten Bezirk gefiltert; ohne Bezirk alle Ortsteile
+    ot_choices <- if (nzchar(imp$bezirk)) {
+      shiny_ortsteile |>
+        st_drop_geometry() |>
+        filter(bezirk == imp$bezirk) |>
+        pull(ortsteil) |>
+        sort()
+    } else {
+      sort(shiny_ortsteile$ortsteil)
+    }
+
+    # Auswahlbereich: unabhängig von der Auswahl immer sichtbar
+    # (Überschrift und Karten-Einstellungen stehen statisch darüber)
+    sidebar_head <- tagList(
+      selectInput(
+        inputId = "bezirk_select",
+        label = "Bezirk:",
+        choices = c("– keine Auswahl –" = "", sort(shiny_bezirke$bezirk)),
+        selected = imp$bezirk,
+        width = "100%"
+      ),
+      selectInput(
+        inputId = "ortsteil_select",
+        label = "Ortsteil:",
+        choices = c("– keine Auswahl –" = "", ot_choices),
+        selected = imp$ortsteil,
+        width = "100%"
+      ),
+      hr()
+    )
+
+    # Startup / nothing selected yet: instructions
     if (is.null(sel)) {
 
       return(tagList(
-        h3("Einwohnerdichte und Erreichbarkeit von Badestellen nach Ortsteilen"),
-        hr(),
+        sidebar_head,
         div(
           style = "background: #E1F0F1; border: 1px solid #00868B; border-radius: 4px; padding: 12px 14px;",
-          p("Klicken Sie auf einen Ortsteil oder eine Badestelle, um Details zu erfahren. Über die Ebenensteuerung oben links blenden Sie Layer ein und aus und wechseln die Basiskarte. Der Mobilitätsmodus in der rechten Sidebar beeinflusst die Erreichbarkeit und damit die angezeigten Werte.",
+          p("Wählen Sie oben den Mobilitätsmodus sowie einen Bezirk oder Ortsteil aus – oder klicken Sie in der Karte auf einen Bezirk, einen Ortsteil oder eine Badestelle. Über die Ebenensteuerung in der Karte blenden Sie Layer ein und aus und wechseln die Basiskarte. Der Mobilitätsmodus beeinflusst die Erreichbarkeit und damit die angezeigten Werte.",
             style = "font-size: 17px; color: #00868B; margin-bottom: 0;")
         )
       ))
@@ -822,15 +920,15 @@ server <- function(input, output, session) {
         summarise(n = n_distinct(lake_name)) |>
         pull(n)
       return(tagList(
-        h3("Einwohnerdichte und Erreichbarkeit von Badestellen nach Ortsteilen"),
-        hr(),
+        sidebar_head,
         h5("Bezirk"),
         div(style = "font-size: 28px; font-weight: bold; color: #00868B;", bz_name),
         h5("Badestellen im Bezirk"),
         div(style = "font-size: 24px; font-weight: bold; color: #00868B;", n_lakes),
-        hr(),
-        p("Hinweis: Details wie Einwohnerdichte und erreichbare Badestellen finden sich auf Ortsteil-Ebene.",
-          style = "font-size: 13px; font-weight: normal; font-style: italic;")
+        h5("Einwohner*innen im Bezirk"),
+        div(style = "font-size: 24px; font-weight: bold; color: #00868B;",
+            paste0(format(round(shiny_bezirke$pop_total[sel$idx]),
+                          big.mark = ".", decimal.mark = ","), " EW")),
       ))
     }
 
@@ -876,16 +974,19 @@ server <- function(input, output, session) {
     }
 
     tagList(
-      h3("Einwohnerdichte und Erreichbarkeit von Badestellen nach Ortsteilen"),
-      hr(),
+      sidebar_head,
       
       h5("Ortsteil"),
       div(style = "font-size: 28px; font-weight: bold; color: #00868B;",
           ot$ortsteil[[1]]),
       
       h5("Bezirk"),
-      div(style = "font-size: 20px; color: #00868B;",
-          ot$bezirk[[1]]),
+      actionLink(
+        inputId = "bezirk_from_ortsteil",
+        label = ot$bezirk[[1]],
+        title = "Bezirksdetails anzeigen",
+        style = "font-size: 20px; color: #00868B; text-decoration: underline;"
+      ),
       hr(),
       
       h5("Einwohnerdichte"),
@@ -901,15 +1002,11 @@ server <- function(input, output, session) {
           paste0(format(round(ot$area_km2[[1]], 1), big.mark = ".", decimal.mark = ","), " km²")),
       hr(),
       
-      h5("Badestellen-Erreichbarkeit für die Bevölkerung (anteilig)",
-         tags$br(),
-         icon(if (sel_mode() == "cycling-regular") "bicycle" else "person-walking"),
-         tags$span(
-           style = "font-size: 13px; font-weight: normal; font-style: italic",
-           paste0(" maximal 20 Minuten · ", mode_word)
-         ), 
-         tags$br(),
-      ),
+      h5("Badestellen-Erreichbarkeit für die Bevölkerung",
+         style = "margin-bottom: 14px;"),
+      p(style = "margin-bottom: 12px; font-size: 13px; font-weight: normal; font-style: italic;",
+        icon(if (sel_mode() == "cycling-regular") "bicycle" else "person-walking"),
+        paste0(" maximal 20 Minuten · ", mode_word)),
          
       div(style = "font-size: 20px;", reach_sentence),
       if (length(reachable) > 0) {
@@ -1076,6 +1173,8 @@ server <- function(input, output, session) {
       slice_head(n = 1)
 
     fmt_km2 <- function(x) format(round(x, 1), decimal.mark = ",")
+    # 2 Nachkommastellen, konsistent mit der km²-Spalte der Ortsteil-Tabelle
+    fmt_km2_2 <- function(x) format(round(x, 2), decimal.mark = ",")
 
     challenge_box <- function(title, task, col, nm, detail) {
       div(
@@ -1099,8 +1198,7 @@ server <- function(input, output, session) {
 
     tagList(
       h3("Aufgaben"),
-      hr(),
-      p("Finden Sie die Antworten – sortieren und filtern Sie in der Ortsteil-Tabelle.",
+      p("Sortieren und filtern Sie in der Ortsteil-Tabelle, nutzen Sie auch die interaktive Karte zur Lösungsfindung.",
         style = "font-size: 19px; margin-top: 10px;"),
 
       section_hdr("bicycle", "Fahrrad"),
@@ -1132,17 +1230,17 @@ server <- function(input, output, session) {
       ),
       challenge_box(
         "Aufgabe 4",
-        "In welchem Ortsteil können alle Einwohner*innen zu Fuß und in maximal 20 Minuten eine Badestelle erreichen? Was ist das Besondere an diesem Ortsteil?",
+        "In welchem Ortsteil können alle Einwohner*innen zu Fuß (und mit Rad) in maximal 20 Minuten eine Badestelle erreichen?",
         "#EE6363",
         c4$ortsteil[[1]],
-        paste0("(", c4$bezirk[[1]], "): mit nur ", fmt_km2(c4$area_km2[[1]]),
-               " km² der zweitkleinste Ortsteil Berlins – Badestelle: Strandbad Halensee im angrenzenden Grunewald.")
+        paste0("(", c4$bezirk[[1]], "): mit nur ", fmt_km2_2(c4$area_km2[[1]]),
+               " km² der zweitkleinste Ortsteil Berlins – Badestelle: Strandbad Halensee im angrenzenden Ortsteil Grunewald.")
       ),
 
       section_hdr("star", "Zusatzfrage"),
       challenge_box(
         "Aufgabe 5",
-        "Die Bevölkerung welches Bezirks kann keine oder die wenigsten Badestellen erreichen (zu Fuß und/oder Fahrrad)?",
+        "Die Bevölkerung welches Bezirks (aller Ortsteile) kann in 20 Minuten keine Badestellen erreichen (zu Fuß und/oder Fahrrad)?",
         "#EE6363",
         c5$bezirk[[1]],
         paste0("0 % Zugang – weder zu Fuß noch mit dem Fahrrad (", fmt_pop2(c5$pop[[1]]),
@@ -1301,19 +1399,44 @@ server <- function(input, output, session) {
 
     tagList(
       h3("Aufgaben"),
-      hr(),
-      p("Finden Sie die Antworten – sortieren und filtern Sie in der Badestellen-Tabelle.",
+      p("Finden Sie die Antworten – sortieren und filtern Sie in der Badestellen-Tabelle, nutzen Sie das Diagramm.",
         style = "font-size: 19px; margin-top: 10px;"),
-      p("Details zur Berechnung mit dem Gravity-Modell finden sich in den Metadaten.",
-        style = "font-size: 13px; font-weight: normal; font-style: italic"),
+
+      # Hinweisbox zum Hilfsdiagramm: Text, Vorschaubild, Button.
+      # Das Diagramm öffnet sich in einem eigenen Fenster, weil dort die
+      # Badestellen-Namen lesbar sind; bis zum Klick bleibt die Lösung von
+      # Aufgabe B4 verborgen.
+      div(
+        style = "border: 1px solid #CD5555; border-radius: 4px; padding: 12px; margin-bottom: 16px;",
+        p("Zugerechnete Einwohner*innen je Badestelle, getrennt nach Mobilitätsmodus, sortiert nach Größe (Fahrrad).",
+          style = "font-size: 14px; font-style: italic; color: #00494C; margin-top: 0; margin-bottom: 10px;"),
+        tags$a(
+          href = "plot_lakes_ew.png",
+          target = "_blank",
+          onclick = "window.open('plot_lakes_ew.png', '_blank', 'width=1200,height=950'); return false;",
+          style = "display: block; cursor: zoom-in;",
+          img(
+            src = "plot_lakes_ew.png",
+            style = "width: 100%; height: auto; display: block; border: 1px solid #E3E3E3; border-radius: 4px;",
+            alt = "Vorschau: Balkendiagramm der je Badestelle zugerechneten Einwohner*innen nach Mobilitätsmodus"
+          )
+        ),
+        tags$button(
+          type = "button",
+          class = "btn btn-default",
+          onclick = "window.open('plot_lakes_ew.png', '_blank', 'width=1200,height=950');",
+          style = "width: 100%; margin-top: 10px; background-color: #00868B; color: #FFFFFF; border: 1px solid #00868B; border-radius: 4px; padding: 6px 10px; font-size: 14px; font-weight: bold;",
+          icon("chart-simple"), " Diagramm öffnen"
+        )
+      ),
 
       section_hdr("umbrella-beach", "Badestellen"),
       challenge_box(
         "Aufgabe B1",
-        "Bei welcher Badestelle ändert sich die Zahl der zugerechneten Einwohner*innen am stärksten, wenn man statt zu Fuß mit dem Fahrrad anreist?",
+        "In welchen drei Ortsteilen liegen die Badestellen, denen mit dem Fahrrad weniger als 2.500 Einwohner*innen zugerechnet werden – und was haben sie gemeinsam?",
         "#00C5CD",
-        "Strandbad Weißensee",
-        "(Pankow): Dem Strandbad werden mit dem Fahrrad rund 428.000 Einwohner*innen zugerechnet, zu Fuß nur rund 36.000 – ein Unterschied von rund 392.000."
+        "Schmöckwitz (Treptow-Köpenick), Nikolassee (Steglitz-Zehlendorf) und Grunewald (Charlottenburg-Wilmersdorf)",
+        "Die vier Badestellen (Seddinsee, Schmöckwitz, Lieper Bucht und Grunewaldturm) liegen weit am Stadtrand in großen Wald- und Seengebieten, in denen kaum Menschen wohnen – ihnen werden daher nur rund 1.000 bis 2.400 Einwohner*innen zugerechnet. Das Muster zeigt sich auf beiden Stadtseiten."
       ),
       challenge_box(
         "Aufgabe B2",
@@ -1331,10 +1454,10 @@ server <- function(input, output, session) {
       ),
       challenge_box(
         "Aufgabe B4",
-        "In welchen drei Ortsteilen liegen die Badestellen, denen mit dem Fahrrad weniger als 2.500 Einwohner*innen zugerechnet werden – und was haben sie gemeinsam?",
+        "Bei welcher Badestelle ändert sich die Zahl der zugerechneten Einwohner*innen am stärksten, wenn man statt zu Fuß mit dem Fahrrad anreist?",
         "#00C5CD",
-        "Schmöckwitz (Treptow-Köpenick), Nikolassee (Steglitz-Zehlendorf) und Grunewald (Charlottenburg-Wilmersdorf)",
-        "Die vier Badestellen (Seddinsee, Schmöckwitz, Lieper Bucht und Grunewaldturm) liegen weit am Stadtrand in großen Wald- und Seengebieten, in denen kaum Menschen wohnen – ihnen werden daher nur rund 1.000 bis 2.400 Einwohner*innen zugerechnet. Das Muster zeigt sich auf beiden Stadtseiten."
+        "Strandbad Weißensee",
+        "(Pankow): Dem Strandbad werden mit dem Fahrrad rund 428.000 Einwohner*innen zugerechnet, zu Fuß nur rund 36.000 – ein Unterschied von rund 392.000."
       ),
       challenge_box(
         "Aufgabe B5",
