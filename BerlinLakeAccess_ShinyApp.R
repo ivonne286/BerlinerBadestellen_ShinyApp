@@ -468,7 +468,9 @@ ui <- fluidPage(
             p("Für das Hilfsdiagramm im Tab Badestellen-Tabelle zusätzlich: tidyr 1.3.2, ggplot2 4.0.2."),
             hr(),
             h4("Repository"),
-            p("github-link folgt"),
+            p(a("github.com/ivonne286/BerlinerBadestellen_ShinyApp",
+                href = "https://github.com/ivonne286/BerlinerBadestellen_ShinyApp",
+                target = "_blank")),
             hr(),
             h4("Hinweis auf KI-Unterstützung"),
             p("Konzeption, Fragestellung, Auswahl und Durchführung der Analyse sowie die fachlichen und methodischen Entscheidungen wurden eigenständig entwickelt und getroffen. ChatGPT wurde zur Überprüfung von R-Code bei der Datenaufbereitung eingesetzt. Für die Programmierung der Shiny-App wurde der Posit Assistant mit den Modellen deepseek-v4.1-flash, glm-5.3, glm-5.3-flash und kimi-k2.7-code eingesetzt.")

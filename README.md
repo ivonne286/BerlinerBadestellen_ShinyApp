@@ -1,102 +1,107 @@
-# Berlin Bathing Sites – Thematic Accessibility Map
+# Berliner Badestellen – Thematische Karte zur Erreichbarkeit
 
-Interactive Shiny app analysing how many Berlin residents can reach an official
-bathing site (Badestelle) within 5/10/20 minutes — by bike or on foot.
-Includes an isochrone map, rankings by Ortsteil and by bathing site, and a
-metadata & methods tab (German).
+Interaktive Shiny-App, die analysiert, wie viele Berliner Einwohner*innen eine
+offizielle Badestelle innerhalb von 5/10/20 Minuten erreichen können — mit
+dem Fahrrad oder zu Fuß. Enthalten sind eine Isochronen-Karte, Rankings nach
+Ortsteil und nach Badestelle sowie ein Tab mit Metadaten und Methodik.
 
-## Repository structure
+## Repositorystruktur
 
-- `BerlinLakeAccess_ShinyApp.R` — the complete app (UI + server), single file
-- `scripts/` — data pipeline (numbered, run in order)
-- `data/` — pipeline inputs/outputs; only the files below are tracked
-- `www/` — static assets used by the app (start-page images, helper chart)
+- `BerlinLakeAccess_ShinyApp.R` — die komplette App (UI + Server), eine Datei
+- `scripts/` — Datenpipeline (nummeriert, in dieser Reihenfolge ausführen)
+- `data/` — Pipeline-Eingaben und -Ausgaben; nur die unten genannten Dateien
+  sind versioniert
+- `www/` — statische Assets der App (Bilder der Startseite, Hilfsdiagramm)
 
-## Run the app
+## App starten
 
-- Open `BerlinLakeAccess_ShinyApp.R` in RStudio → **Run App**
-  (or `shiny::runApp("BerlinLakeAccess_ShinyApp.R")`)
-- No pipeline run needed — `data/shiny_data.RData` is included.
+- `BerlinLakeAccess_ShinyApp.R` in RStudio öffnen → **Run App**
+  (oder `shiny::runApp("BerlinLakeAccess_ShinyApp.R")`)
+- Ein Pipeline-Durchlauf ist nicht nötig — `data/shiny_data.RData` ist enthalten.
 
-## Data pipeline (`scripts/`)
+## Datenpipeline (`scripts/`)
 
-| Step | Script | Purpose |
+| Schritt | Skript | Zweck |
 |---|---|---|
-| 1 | `1_data_preparation.R` | Download Berlin WFS data (districts, Ortsteile, population density), build population points |
-| 1e | `1_explore_bezirke_pop.R` | Optional exploration (district population stats) |
-| 2 | `2_get_isochrones_all.R` | Fetch travel-time isochrones via OpenRouteService API — **needs API key, do not re-run casually** |
-| 3a | `3_analysis_a.R` | Access statistics per Ortsteil/Bezirk |
-| 3b | `3_analysis_b.R` | Catchment & equal-share allocation per bathing site |
-| 3c | `3_analysis_c.R` | Gravity model → ranking of bathing sites |
-| 4 | `4_prepare_final_shiny_data.R` | Build `data/shiny_data.RData` |
-| 5 | `5_make_www_plots.R` | Recreates all images in `www/` (helper chart + two start-page maps) |
+| 1 | `1_data_preparation.R` | Lädt Berliner WFS-Daten herunter (Bezirke, Ortsteile, Bevölkerungsdichte), erzeugt Bevölkerungspunkte |
+| 1e | `1_explore_bezirke_pop.R` | Optionale Exploration (Bevölkerungsstatistiken der Bezirke) |
+| 2 | `2_get_isochrones_all.R` | Abruf von Reisezeit-Isochronen über die OpenRouteService-API — **benötigt API-Key, nicht beiläufig neu ausführen** |
+| 3a | `3_analysis_a.R` | Erreichbarkeits-Statistiken je Ortsteil/Bezirk |
+| 3b | `3_analysis_b.R` | Einzugsgebiete & Aufteilung nach Gleichanteilen je Badestelle |
+| 3c | `3_analysis_c.R` | Gravity-Modell → Ranking der Badestellen |
+| 4 | `4_prepare_final_shiny_data.R` | Baut `data/shiny_data.RData` |
+| 5 | `5_make_www_plots.R` | Erstellt alle Bilder in `www/` neu (Hilfsdiagramm + zwei Startseiten-Karten) |
 
-Step numbers = run order — each script reads the outputs of the previous ones.
+Die Schrittnummern entsprechen der Ausführungsreihenfolge — jedes Skript liest
+die Ausgaben der vorherigen.
 
-### Reproducing the data from a fresh clone
+### Daten aus einem frischen Clone reproduzieren
 
-1. Run `1_data_preparation.R` — downloads Berlin WFS data, writes
-   `data/1_processed_data.RData`
-2. **Skip step 2** — isochrones are already included
-   (`data/2_isochrones_all.RData`); only re-run it with your own
-   `ORS_API_KEY` if you want to refetch them
-3. Run `3_analysis_a.R` → `3_analysis_b.R` → `3_analysis_c.R` (in this order)
-4. Run `4_prepare_final_shiny_data.R` — writes `data/shiny_data.RData`
-5. Run `5_make_www_plots.R` — refreshes the images in `www/`
+1. `1_data_preparation.R` ausführen — lädt Berliner WFS-Daten herunter und
+   schreibt `data/1_processed_data.RData`
+2. **Schritt 2 überspringen** — die Isochronen sind bereits enthalten
+   (`data/2_isochrones_all.RData`); nur mit eigenem `ORS_API_KEY` neu
+   ausführen, wenn sie neu abgerufen werden sollen
+3. `3_analysis_a.R` → `3_analysis_b.R` → `3_analysis_c.R` ausführen
+   (in dieser Reihenfolge)
+4. `4_prepare_final_shiny_data.R` ausführen — schreibt `data/shiny_data.RData`
+5. `5_make_www_plots.R` ausführen — erneuert die Bilder in `www/`
 
-Notes:
+Hinweise:
 
-- `1_processed_data.RData` is not part of the repo — step 1 regenerates it
-  (needs internet, but no API key)
-- Each script loads all its inputs from files, so steps 3–5 run cleanly in a
-  single fresh R session
-- `1_explore_bezirke_pop.R` (step 1e) is optional exploration, not needed
-  for the app data
+- `1_processed_data.RData` ist nicht Teil des Repos — Schritt 1 erzeugt sie
+  neu (Internet erforderlich, aber kein API-Key)
+- Jedes Skript lädt alle seine Eingaben aus Dateien; die Schritte 3–5 laufen
+  daher sauber in einer einzigen frischen R-Session durch
+- `1_explore_bezirke_pop.R` (Schritt 1e) ist eine optionale Exploration und
+  für die App-Daten nicht erforderlich
 
-## Data files included in the repository
+## Im Repository enthaltene Datendateien
 
-- `data/shiny_data.RData` — all `shiny_*` objects the app loads
-- `data/lakes_new.gpkg` — bathing site access points, manually corrected in QGIS
-- `data/lakes_original.gpkg` — original bathing site points as downloaded from the WFS, for comparison with the corrected version
-- `data/berlin_waters.gpkg` — Berlin water bodies (OSM/Overpass)
-- `data/2_isochrones_all.RData` — frozen ORS isochrone results
-- `data/einwohnerzahlen.csv` — official district population figures
+- `data/shiny_data.RData` — alle `shiny_*`-Objekte, die die App lädt
+- `data/lakes_new.gpkg` — Zugangspunkte der Badestellen, in QGIS manuell
+  bereinigt
+- `data/lakes_original.gpkg` — ursprüngliche Badestellenpunkte aus dem
+  WFS-Download, als Vergleichsgrundlage zur bereinigten Version
+- `data/berlin_waters.gpkg` — Berliner Wasserflächen (OSM/Overpass)
+- `data/2_isochrones_all.RData` — eingefrorener ORS-Isochronen-Ergebnisstand
+- `data/einwohnerzahlen.csv` — amtliche Einwohner*innenzahlen auf
+  Bezirksebene
 
-## API keys (`.Renviron`)
+## API-Keys (`.Renviron`)
 
-Both keys live in a `.Renviron` file in the project root — this file is
-git-ignored, so create your own:
+Beide Keys liegen in einer `.Renviron`-Datei im Projekt-Root — diese Datei ist
+git-ignoriert und muss daher selbst angelegt werden:
 
-1. Create a text file named `.Renviron` in the project root
-2. Add one line per key:
-   `ORS_API_KEY=your_key_here` and/or
-   `STADIA_MAPS_API_KEY=your_key_here`
-3. Restart R (`.Renviron` is only read at startup)
+1. Eine Textdatei namens `.Renviron` im Projekt-Root anlegen
+2. Pro Key eine Zeile ergänzen:
+   `ORS_API_KEY=eigener_key` und/oder `STADIA_MAPS_API_KEY=eigener_key`
+3. R neu starten (`.Renviron` wird nur beim Start gelesen)
 
-- `STADIA_MAPS_API_KEY` — optional, basemap styling; the app falls back to
-  free CartoDB/OSM tiles without it
-- `ORS_API_KEY` — only needed to re-run script 2 (isochrones); the app itself
-  runs without it
+- `STADIA_MAPS_API_KEY` — optional, für das Basemap-Styling; ohne ihn nutzt
+  die App automatisch die freien CartoDB/OSM-Karten
+- `ORS_API_KEY` — nur für die erneute Ausführung von Skript 2 (Isochronen)
+  nötig; die App selbst läuft ohne ihn
 
-## Dependencies
+## Abhängigkeiten
 
 - App: `shiny`, `sf`, `dplyr`, `tmap`, `tmap.mapgl`, `DT`
-- Pipeline additionally: `tidyr`, `gstat`, `stars`, `ggplot2`, `tmap`,
+- Pipeline zusätzlich: `tidyr`, `gstat`, `stars`, `ggplot2`, `tmap`,
   `openrouteservice`, `tidyverse`
 
-## Data sources
+## Datenquellen
 
-- Berlin WFS services (gdi.berlin.de): bathing sites, ALKIS district/Ortsteil
-  boundaries, 2025 population density
-- OpenStreetMap via Overpass (water bodies)
-- Amtliche Einwohnerzahlen (district level)
+- Berliner WFS-Dienste (gdi.berlin.de): Badestellen, ALKIS-Grenzen von Bezirken
+  und Ortsteilen, Bevölkerungsdichte 2025
+- OpenStreetMap via Overpass (Wasserflächen)
+- Amtliche Einwohner*innenzahlen (Bezirksebene)
 
 ## Status
 
-Under development — method details are documented inside the app
-(tab "Metadaten & Methodik"). Publication planned: GitHub (code) and
-Posit Connect Cloud (live app).
+Die App befindet sich in Entwicklung — Methodendetails sind in der App
+dokumentiert (Tab "Metadaten & Methodik"). Der Code ist auf GitHub
+veröffentlicht; eine Live-App auf Posit Connect Cloud ist geplant.
 
-## Contact
+## Kontakt
 
 Ivonne Giske — [ivonne.giske@posteo.net](mailto:ivonne.giske@posteo.net)
