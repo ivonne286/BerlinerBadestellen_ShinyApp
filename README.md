@@ -7,7 +7,7 @@ Ortsteil und nach Badestelle sowie ein Tab mit Metadaten und Methodik.
 
 ## Repositorystruktur
 
-- `BerlinLakeAccess_ShinyApp.R` — die komplette App (UI + Server), eine Datei
+- `app.R` — die komplette App (UI + Server), eine Datei
 - `scripts/` — Datenpipeline (nummeriert, in dieser Reihenfolge ausführen)
 - `data/` — Pipeline-Eingaben und -Ausgaben; nur die unten genannten Dateien
   sind versioniert
@@ -15,8 +15,8 @@ Ortsteil und nach Badestelle sowie ein Tab mit Metadaten und Methodik.
 
 ## App starten
 
-- `BerlinLakeAccess_ShinyApp.R` in RStudio öffnen → **Run App**
-  (oder `shiny::runApp("BerlinLakeAccess_ShinyApp.R")`)
+- `app.R` in RStudio öffnen → **Run App**
+  (oder `shiny::runApp("app.R")`)
 - Ein Pipeline-Durchlauf ist nicht nötig — `data/shiny_data.RData` ist enthalten.
 
 ## Datenpipeline (`scripts/`)

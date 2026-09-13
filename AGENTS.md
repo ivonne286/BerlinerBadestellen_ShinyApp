@@ -6,7 +6,7 @@
 ## Projektkontext
 - Shiny-App "Berliner Badestellen - Thematische Karte zur Erreichbarkeit".
 - App befindet sich in der Entwicklung
-- Hauptdatei: BerlinLakeAccess_ShinyApp.R (drei zentrale Teile: UI, Karten-Server, Sidebars pro Tab).
+- Hauptdatei: app.R (drei zentrale Teile: UI, Karten-Server, Sidebars pro Tab).
 - Tabs (`tabsetPanel(id = "map_tab")`): `start`, `karte` (interaktive Karte), `ranking` (Ortsteil-Tabelle), `lakes` (Badestellen-Tabelle), `meta` (Metadaten & Methodik).
 
 ## Datenherkunft
@@ -37,8 +37,8 @@
 - Badestellen-Tabelle: beide Modi nebeneinander (Rang, zugerechnete EW in % und absolut; Bezug 3.913.490 EW); 2 der 39 Badestellen haben zu Fuß keinen Rang.
 
 ## Bekannte Stolperfallen
-- Editor-Puffer vs. Disk: Nach Assistant-Edits kann der Editor-Puffer veraltet sein (Symptom: widersprüchliche Meldungen wie "String not found" trotz vorhandener Zeile). Disk-Stand verifizieren, z. B. mit parse("BerlinLakeAccess_ShinyApp.R"). Vor manuellen Änderungen im Editor: Datei neu laden (File -> Reload from Disk), sonst überschreibt Speichern die Fixes.
-- Windows-Datei-Sperre: Läuft die Shiny-App, hält sie BerlinLakeAccess_ShinyApp.R gesperrt – Änderungen an der Datei schlägen dann fehl oder korrumpieren sie (Symptom: "The process cannot access the file ..."). Deshalb: App stoppen, bevor Änderungen beginnen; Assistant prüft die Schreibbarkeit der Datei vorab.
+- Editor-Puffer vs. Disk: Nach Assistant-Edits kann der Editor-Puffer veraltet sein (Symptom: widersprüchliche Meldungen wie "String not found" trotz vorhandener Zeile). Disk-Stand verifizieren, z. B. mit parse("app.R"). Vor manuellen Änderungen im Editor: Datei neu laden (File -> Reload from Disk), sonst überschreibt Speichern die Fixes.
+- Windows-Datei-Sperre: Läuft die Shiny-App, hält sie app.R gesperrt – Änderungen an der Datei schlägen dann fehl oder korrumpieren sie (Symptom: "The process cannot access the file ..."). Deshalb: App stoppen, bevor Änderungen beginnen; Assistant prüft die Schreibbarkeit der Datei vorab.
 
 ## Git & Line-Endings (LF-Setup)
 - Repo ist vollständig auf LF: `.gitattributes` im Root mit `* text=auto eol=lf` (plus `*.RData`, `*.rds`, `*.gpkg`, `*.shp` usw. als `binary`); committet in d31b093.
