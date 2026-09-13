@@ -11,12 +11,15 @@
 
 ## Datenherkunft
 - Die App lädt `data/shiny_data.RData` (enthält die `shiny_*`-Objekte wie `shiny_ortsteile`, `shiny_lakes`, `shiny_iso_rings` usw.).
-- Die Daten werden erzeugt im Data-Prep-Skript:
-  `Projekt_Badegewaesser_Berlin/scripts/4_prepare_final_shiny_data.R`
-- Nach dem Neu-Bauen des Skripts wird die Datei `data_new/shiny_data.RData` aus dem Prep-Projekt in das `data/`-Verzeichnis dieser Shiny-App kopiert.
+- Alle Pipeline-Skripte liegen in diesem Projekt unter `scripts/`. Reihenfolge: `1_data_preparation.R` (WFS-Download) → `1_explore_bezirke_pop.R` (optionale Exploration) → `2_get_isochrones_all.R` (ORS-API – nicht ohne Absprache laufen lassen) → `3_analysis_a.R` → `3_analysis_b.R` → `3_analysis_c.R` (Gravity-Modell) → `4_prepare_final_shiny_data.R` (schreibt direkt nach `data/shiny_data.RData`) → `5_make_www_plots.R` (erzeugt alle drei www-PNGs neu).
+- Nur noch EIN Datenordner: `data/` (ehemaliges `data_new/` ist aufgelöst). Kein manuelles Kopieren von `shiny_data.RData` mehr nötig.
+- Lokales Backup des Re-Run-Vergleichs: `data/_backup_2026-09-13/` (nicht versioniert) — kann nach Sichtung gelöscht werden.
+- Manuelle, nicht per Skript erzeugte Eingaben in `data/`: `lakes_new.gpkg` (QGIS-bereinigte Badestellenpunkte), `berlin_waters.gpkg` (OSM/Overpass-Wasserflächen), `einwohnerzahlen.csv` (amtliche Bezirks-EW). Diese drei plus `2_isochrones_all.RData` (eingefrorener ORS-API-Ergebnisstand) sind per `.gitignore`-Ausnahme **versioniert** — ohne sie kann niemand die Pipeline nachrechnen. `lakes_new.gpkg` ist die kanonische Quelle der Badestellenpunkte: Skript 1 bettet sie zusätzlich in `1_processed_data.RData` ein, 3b/3c lesen sie direkt.
+- Skript 2 liest den ORS-Key aus `.Renviron` (`ORS_API_KEY`, neben `STADIA_MAPS_API_KEY`); die alte Klartext-Datei ist gelöscht. Resume: schon geholte Isochronen in `data/2_isochrones_all.RData` werden beim Re-Run übersprungen.
+- Die Skripte enthalten kein `rm(list=ls())` mehr — jedes Skript lädt alle Eingaben selbst aus Dateien; 3a → 3b → 3c → 4 → 5 laufen daher in einer einzigen R-Session durch.
 
 ## Metadaten-Dokumentation
-- `Metadaten_Methodik.md` im Projekt-Root ist die Arbeitsfassung für den Tab `meta` ("Metadaten & Methodik"). Die Nutzerin bearbeitet diese Datei extern und ergänzt sie; der Stand wird später in die App übernommen.
+- `notes/Metadaten_Methodik.md` ist die Arbeitsfassung für den Tab `meta` ("Metadaten & Methodik"). Die Nutzerin bearbeitet diese Datei extern und ergänzt sie; der Stand wird später in die App übernommen.
 - Die Datei spiegelt bewusst die Gliederung der App: `# Metadaten`, `# Umsetzung & Code`, `# Methodik`, jeweils mit denselben Unterüberschriften. Übernahme 1:1: Markdown-Überschrift → `h4()`, Absatz → `p()`, `**fett**` → `strong()`, Link → `a(href = ..., target = "_blank")`, die `---`-Linien entsprechen den `hr()`-Trennern.
 - Ausnahme beim Übernehmen: Das "Datum der letzten Aktualisierung" steht in der Datei fest, in der App kommt es aus `Sys.Date()`.
 - Die Datei ist reine Arbeitsgrundlage und hat keine technische Verbindung zur App; sie kann verschoben werden.
@@ -29,7 +32,7 @@
 - Klick-Logik: Bezirke haben eine eigene ID `B_<nr>` (`bezirk_click`, damit Namensgleichheit wie "Mitte" nicht als Ortsteil-Klick gilt), Ortsteile `id = "ortsteil"`, Badestellen `id = "lake_id"` (wird erst beim Laden aus Zeilennummer + "c"/"w" gebaut). Badestellen-Klicks öffnen nur ein Popup, keine Sidebar-Info.
 - tmap kodiert Leerzeichen und Bindestriche in Feature-IDs als Unterstriche – beim Klick-Rückauflösen `gsub("[^[:alnum:]]", "_", ...)` verwenden.
 - Basemaps: `basemap_layer()` nutzt Stadia (AlidadeDark/AlidadeSmooth/OSMBright) mit `STADIA_MAPS_API_KEY` aus `.Renviron`, sonst Fallback auf CartoDB/OSM.
-- Statische Assets liegen in `www/`: Banner-Foto und zwei Kartenbilder (Start-Tab) sowie `plot_lakes_ew.png` (Hilfsdiagramm im Badestellen-Tab). Erzeugt wird es von `scripts/make_lakes_plot.R` (lädt `data/shiny_data.RData`, gruppierte Balken je Badestelle nach Mobilitätsmodus, sortiert nach Fahrrad-Wert, `ggsave` nach `www/`) – nach einem Daten-Neubau neu ausführen. In der App öffnen der Button "Diagramm in neuem Fenster öffnen" und die Miniatur-Vorschau das Bild per `window.open` in einem eigenen Fenster (1200×950), damit die Badestellen-Namen lesbar sind.
+- Statische Assets liegen in `www/`: Banner-Foto und zwei Kartenbilder (Start-Tab) sowie `plot_lakes_ew.png` (Hilfsdiagramm im Badestellen-Tab). Alle drei Karten/Diagramme erzeugt `scripts/5_make_www_plots.R` direkt nach `www/` – nach einem Daten-Neubau neu ausführen. In der App öffnen der Button "Diagramm in neuem Fenster öffnen" und die Miniatur-Vorschau das Bild per `window.open` in einem eigenen Fenster (1200×950), damit die Badestellen-Namen lesbar sind.
 - Ortsteil-Tabelle: Prozentwerte und EW/ha auf 1, Flächen auf 2 Nachkommastellen gerundet (konsistent zur Sidebar), Rundungshinweis über der Tabelle.
 - Badestellen-Tabelle: beide Modi nebeneinander (Rang, zugerechnete EW in % und absolut; Bezug 3.913.490 EW); 2 der 39 Badestellen haben zu Fuß keinen Rang.
 
@@ -45,5 +48,6 @@
 - Falls git eine Textdatei als "binary" behandelt: auf doppelte CRs (`\r\r\n`) prüfen – war bei AGENTS.md der Fall und ist bereinigt (bedad9f).
 
 ## Regeln
+- Diese Datei liegt im Projekt-Root und wird von Posit Assistant automatisch als Projektkontext geladen.
 - Keine Dateien ohne vorherige Freigabe ändern – vor jeder Änderung nachfragen.
-- `TODO.txt` wird hauptsächlich von Nutzerin gepflegt. Der Assistant vermerkt erledigte Aufgaben nicht selbst, sondern fragt bei Bedarf nach.
+- `notes/TODO.txt` wird hauptsächlich von Nutzerin gepflegt. Der Assistant vermerkt erledigte Aufgaben nicht selbst, sondern fragt bei Bedarf nach.

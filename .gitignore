@@ -1,9 +1,40 @@
+# --- R / RStudio ---
 .Rproj.user/
 .Rhistory
 .Ruserdata
 .RData
-**/*.Rdata
-
-.posit/assistant
 .Renviron
 
+# --- Posit Assistant ---
+.posit/
+
+# --- Daten: nur diese Dateien werden versioniert ---
+# shiny_data.RData        -> App-Daten (Endprodukt der Pipeline)
+# lakes_new.gpkg          -> QGIS-bereinigte Badestellenpunkte (manuell, nicht reproduzierbar)
+# lakes_original.gpkg     -> Original-Punkte aus dem WFS (Vergleichsgrundlage; wird von Skript 1 auch neu erzeugt)
+# berlin_waters.gpkg      -> OSM-Wasserflächen (manuell via Overpass/QGIS)
+# 2_isochrones_all.RData  -> eingefrorene ORS-Isochronen (API-Ergebnisstand)
+# einwohnerzahlen.csv     -> amtliche Bezirks-EW (Input für 1_explore_bezirke_pop.R)
+*.RData
+*.Rdata
+*.rds
+*.gpkg
+*.csv
+data/*
+!data/shiny_data.RData
+!data/lakes_new.gpkg
+!data/lakes_original.gpkg
+!data/berlin_waters.gpkg
+!data/2_isochrones_all.RData
+!data/einwohnerzahlen.csv
+
+# --- Lokale Backups (Re-Run-Verifikation; dürfen gelöscht werden) ---
+data/_backup_*/
+
+# --- Notizen & Arbeitsdokumente (bleiben lokal) ---
+notes/
+*.md
+!README.md
+
+# --- Historischer Pipeline-Ordner (falls wieder entstehend) ---
+data_new/
