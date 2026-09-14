@@ -36,6 +36,8 @@ data/_backup_*/
 notes/
 *.md
 !README.md
+# AGENTS.md                -> Projektkontext für Posit Assistant (bewusst versioniert)
+!AGENTS.md
 
 # --- Historischer Pipeline-Ordner (falls wieder entstehend) ---
 data_new/
