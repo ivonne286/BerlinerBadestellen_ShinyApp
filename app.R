@@ -1,3 +1,18 @@
+# ─────────────────────────────────────────────────────────
+# Locale-Guard: Connect Cloud kann den R-Prozess in einer
+# Nicht-UTF-8-Locale starten (manifest-Locale "en_DE" existiert
+# auf Ubuntu nicht). In ASCII-Locales brechen Umlaute in
+# Spaltennamen/Choices und die Namensvergleiche der Dropdown-
+# Reaktivität. Deterministisch auf UTF-8 stellen; lokal
+# (Windows, natives UTF-8) ist das ein No-Op.
+if (!l10n_info()$`UTF-8`) {
+  Sys.setlocale(locale = "C.UTF-8") # Ubuntu 22.04: immer verfügbar
+  if (!l10n_info()$`UTF-8`) {
+    warning("UTF-8-Locale konnte nicht gesetzt werden: ", Sys.getlocale())
+  }
+}
+message("Locale: ", Sys.getlocale())
+
 library(shiny)
 library(sf)
 library(dplyr)
