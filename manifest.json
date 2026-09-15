@@ -3193,10 +3193,13 @@
   },
   "files": {
     "app.R": {
-      "checksum": "2e088ebcd95ba54b8c744375a2a526a3"
+      "checksum": "3c7f617d261c7c39cae224aa8b162667"
     },
     "data/shiny_data.RData": {
       "checksum": "633f5575387aa3e647ba0368c54da7f3"
+    },
+    "www/background.png": {
+      "checksum": "0db45cce88506fcd192e82540073d914"
     },
     "www/plot_lakes_ew.png": {
       "checksum": "4f1625d6f1718ffe4966de876fc287d1"
