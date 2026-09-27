@@ -496,7 +496,7 @@ ui <- fluidPage(
           value = "ranking",
           h3("Alle Ortsteile im Vergleich"),
           hr(),
-          p("Hinweis: EW = Einwohner*innen. Prozentwerte und EW/ha sind auf 1, Flächen auf 2 Nachkommastelle(n) gerundet", style = "font-size: 13px; font-weight: normal; font-style: italic"),
+          p("Hinweis: EW = Einwohner*innen. Prozentwerte und EW/ha sind auf 1, Flächen auf 2 Nachkommastelle(n) gerundet.", style = "font-size: 13px; font-weight: normal; font-style: italic"),
           hr(),
           DT::dataTableOutput("ranking_table")
         ),
@@ -507,7 +507,7 @@ ui <- fluidPage(
           value = "lakes",
           h3("Alle Badestellen im Vergleich"),
           hr(),
-          p("Hinweis: 39 ausgewiesene und überwachte Badestellen. Rang und zugerechnete Einwohner*innen (EW) sind modellbasiert (Gravity-Modell, Methodik siehe Tab Metadaten); Prozentwerte auf 1 Nachkommastelle, Personenzahlen auf ganze Personen gerundet.",
+          p("Hinweis: EW = Einwohner*innen. 39 ausgewiesene und überwachte Badestellen. Rang und zugerechnete EW sind modellbasiert (Gravity-Modell, Methodik siehe Tab Metadaten); Prozentwerte auf 1 Nachkommastelle, EW auf ganze Personen gerundet.",
             style = "font-size: 13px; font-weight: normal; font-style: italic"),
           hr(),
           DT::dataTableOutput("lakes_table")
@@ -611,7 +611,8 @@ ui <- fluidPage(
             p("Die gesamte Datenaufbereitung ist im github-Repository unter scripts/ einsehbar, hier sollen nur einige wichtige Punkte transparent dargelegt werden:"),
             p("Die Punktgeometrien einiger Badestellen wurden geringfügig lagekorrigiert, damit sie geeignete Zugangspunkte für die anschließende Erreichbarkeitsanalyse darstellen. Einige Original-Punkte lagen mitten im Gewässer, andere schon im Land Brandenburg. Zum Vergleich sind beide Datensätze als Geopackages auf github downloadbar unter data/lakes_original.gpkg und data/lakes_new.gpkg."),
             p("Die interaktive Karte zeigt einen Layer mit Wasserflächen, die über OpenStreetMap/Overpass abgefragt wurden. Aus diesen Wasserflächen wurden zur Orientierung und aus Designgründen lediglich die wichtigsten Berliner Gewässer, insbesondere größere Seen und Fließgewässer, für die Karte ausgewählt."),
-            p("Für die Analyse der Einwohnerdichte wurden zunächst Polygone ohne Einwohner*innen (EW) sowie als Gewässer klassifizierte Flächen ausgeschlossen. Darunter waren drei Polygone mit insgesamt 15 Einwohner*innen, die unplausiblerweise innerhalb von Gewässerflächen lagen. Aus den verbleibenden Polygonen wurde jeweils ein innerhalb des Polygons liegender Repräsentativpunkt (Bevölkerungspunkt) abgeleitet. Die im Ausgangsdatensatz enthaltenen Einwohnerzahlen wurden den entsprechenden Punkten zugeordnet; diese Punkte sind die Grundlage der Erreichbarkeits- und Gravity-Analyse. Für die Karte wurden die Einwohnerzahlen der Dichtepolygone flächenanteilig auf ein Raster mit der Auflösung 100x100 m umgelegt und auf die Berliner Stadtgrenze maskiert (Layer Einwohnerdichte). Eine Rasterzelle entspricht 1 ha, der Zellwert daher den Einwohner*innen je Hektar."),
+            p("Aus dem Datensatz der Einwohnerdichte wurden zunächst Polygone ohne Einwohner*innen sowie als Gewässer klassifizierte Flächen ausgeschlossen. Darunter waren drei Polygone mit insgesamt 15 Einwohner*innen, die unplausiblerweise innerhalb von Gewässerflächen lagen. Aus den verbleibenden Polygonen wurde jeweils ein innerhalb des Polygons liegender Repräsentativpunkt (Bevölkerungspunkt) abgeleitet und die im Ausgangsdatensatz enthaltenen Einwohnerzahlen entsprechend zugeordnet; diese Punkte sind die Grundlage der Erreichbarkeits- und Gravity-Analyse."),
+            p("Für das Einwohnerdichte-Raster wurden die Einwohnerzahlen der originalen Dichtepolygone flächenanteilig auf ein Raster mit der Auflösung 100x100 m umgelegt und auf die Berliner Stadtgrenze maskiert. Eine Rasterzelle entspricht 1 ha, der Zellwert daher den Einwohner*innen je Hektar."),
             p("Die Isochronen der 39 Badestellen wurden für zwei Mobilitätsmodi (Fahrrad, Fuß) für drei Zeiten (bis 5, 10 und 20 Minuten) über den OpenRouteService abgerufen. Aus Gründen der Übersichtlichkeit wurden sie zu je drei Zonen pro Modus zusammengeführt und sind in der App als Layer Erreichbarkeitszonen visualisiert."),
             p("Für die Analyse wurde in der Projektion ETRS89 / UTM Zone 33N (EPSG:25833) gerechnet – Flächen, Distanzen und die Rückprojektion der Isochronen. Der Abruf der Isochronen beim OpenRouteService erfolgte in WGS 84 (EPSG:4326), die Darstellung in der Webkarte in Web Mercator (EPSG:3857, Pseudo-Mercator)."),
             hr(),
