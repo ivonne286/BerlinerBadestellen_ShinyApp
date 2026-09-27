@@ -11,7 +11,7 @@ Ortsteil und nach Badestelle sowie ein Tab mit Metadaten und Methodik.
 - `scripts/` — Datenpipeline (nummeriert, in dieser Reihenfolge ausführen)
 - `data/` — Pipeline-Eingaben und -Ausgaben; nur die unten genannten Dateien
   sind versioniert
-- `www/` — statische Assets der App (Bilder der Startseite, Hilfsdiagramm)
+- `www/` — statische Assets der App (Hintergrundbild der Startseite, Hilfsdiagramm)
 
 ## App starten
 
@@ -30,7 +30,7 @@ Ortsteil und nach Badestelle sowie ein Tab mit Metadaten und Methodik.
 | 3b | `3_analysis_b.R` | Einzugsgebiete & Aufteilung nach Gleichanteilen je Badestelle |
 | 3c | `3_analysis_c.R` | Gravity-Modell → Ranking der Badestellen |
 | 4 | `4_prepare_final_shiny_data.R` | Baut `data/shiny_data.RData` |
-| 5 | `5_make_www_plots.R` | Erstellt alle Bilder in `www/` neu (Hilfsdiagramm + zwei Startseiten-Karten) |
+| 5 | `5_make_www_plots.R` | Erstellt das Hilfsdiagramm `www/plot_lakes_ew.png` neu |
 
 Die Schrittnummern entsprechen der Ausführungsreihenfolge — jedes Skript liest
 die Ausgaben der vorherigen.
@@ -45,7 +45,7 @@ die Ausgaben der vorherigen.
 3. `3_analysis_a.R` → `3_analysis_b.R` → `3_analysis_c.R` ausführen
    (in dieser Reihenfolge)
 4. `4_prepare_final_shiny_data.R` ausführen — schreibt `data/shiny_data.RData`
-5. `5_make_www_plots.R` ausführen — erneuert die Bilder in `www/`
+5. `5_make_www_plots.R` ausführen — erneuert `www/plot_lakes_ew.png`
 
 Hinweise:
 
@@ -86,7 +86,7 @@ git-ignoriert und muss daher selbst angelegt werden:
 ## Abhängigkeiten
 
 - App: `shiny`, `sf`, `dplyr`, `tmap`, `tmap.mapgl`, `DT`
-- Pipeline zusätzlich: `tidyr`, `gstat`, `stars`, `ggplot2`, `tmap`,
+- Pipeline zusätzlich: `tidyr`, `stars`, `ggplot2`, `tmap`,
   `openrouteservice`, `tidyverse`
 
 ## Datenquellen

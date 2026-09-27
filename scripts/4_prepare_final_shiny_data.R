@@ -5,7 +5,8 @@
 ### Modul: Thematische Internetkartografie
 ### Aufgabe: Erstellung einer thematischen, interaktiven Karte, browserfähig
 ###
-### Eingabe:  data/1_processed_data.RData, data/2_isochrones_all.RData,
+### Eingabe:  data/1_processed_data.RData (ortsteile, bezirke, ew_poly),
+###           data/2_isochrones_all.RData,
 ###           data/3_analysis_c_lake_ranking.RData, data/3_analysis_a_ew_point_access_stats.RData,
 ###           data/berlin_waters.gpkg
 ### Ausgabe:  data/shiny_data.RData (alle shiny_*-Objekte für die App)
@@ -13,7 +14,6 @@
 library(sf)
 library(dplyr)
 library(tidyr)
-library(gstat)  # IDW-Interpolation
 library(stars)  # Raster: st_rasterize
 
 tmp = new.env()
@@ -29,6 +29,7 @@ load("data/3_analysis_a_ew_point_access_stats.RData", envir = tmp_D)
 
 ortsteile <- tmp$ortsteile
 bezirke <- tmp$bezirke
+ew_poly <- tmp$ew_poly  # nur besiedelte Flächen (ew2025 != 0), Quelle für 4d
 lake_ranking <- tmp_A$lake_ranking
 lakes_b <- tmp_A$lakes_b
 all_isochrones_sf <- tmp_B$all_isochrones_sf
@@ -324,41 +325,77 @@ shiny_iso_rings <- shiny_iso_rings |>
 
 
 ### =============================
-# 4d) Bevölkerungsdichte-Raster (IDW-Hitzekarte)
+# 4d) Bevölkerungsdichte-Raster (areale Hitzekarte)
 ### =============================
-# Kontinuierliche Dichteoberfläche (Einwohner je ha) aus den Baublock-Punkten,
-# auf ein 100-m-Raster interpoliert und auf Berlin maskiert.
+# Einwohner:innen je ha (EW 2025), flächenanteilig aus den Bevölkerungsdichte-
+# Polygonen auf ein 100-m-Raster umgelegt, maskiert auf die Union der Bezirke
+# (shiny_berlin_boundary aus 4b). Zellen in Berlin ohne besiedelte Fläche
+# behalten den Wert 0 (Parks, Gewässer, Straßen), Zellen außerhalb Berlins
+# werden NA - der Rand ist dadurch als ganze Zellen bis 100 m ausgefranst.
+# Achtung: ew_poly enthält nur besiedelte Flächen (Filter ew2025 != 0 in
+# 1_data_preparation.R), daher ist der Null-Anteil im Raster hoch.
 # Enthält nur die rohen Dichtewerte, keine Farben - die Farbskala (z.B.
 # tm_scale_continuous_sqrt()) wird erst beim Plotten in tmap festgelegt.
 
-g_idw <- gstat(
-  formula = ew_ha_2025 ~ 1,
-  locations = ew_points_b,
-  nmax = 15,
-  set = list(idp = 2)
-)
-
-bb <- st_bbox(ew_points_b)
-grid_pts <- expand.grid(
-  x = seq(bb$xmin, bb$xmax, by = 100),
-  y = seq(bb$ymin, bb$ymax, by = 100)
+# 100-m-Raster über der Bounding Box, auf die Stadtgrenze maskiert. grid_id
+# bleibt beim Filtern erhalten und ist der stabile Zellschlüssel.
+grid_100 <- st_make_grid(
+  shiny_berlin_boundary,
+  cellsize = 100,
+  what = "polygons"
 ) |>
-  st_as_sf(
-    coords = c("x", "y"),
-    crs = st_crs(ew_points_b)
-  )
+  st_as_sf() |>
+  mutate(grid_id = row_number())
 
-pred <- predict(g_idw, grid_pts)
-pred <- pred[lengths(st_intersects(pred, st_union(bezirke))) > 0, ]
+grid_100 <- grid_100[
+  lengths(st_intersects(grid_100, shiny_berlin_boundary)) > 0,
+]
 
-shiny_ew_density_raster <- st_rasterize(
-  pred["var1.pred"],
-  dx = 100,
-  dy = 100
+# Polygone mit den Rasterzellen verschneiden: ein Schnitt je Polygon-Zelle-Paar.
+intersections <- st_intersection(
+  ew_poly |>
+    select(point_id, ew2025),
+  grid_100 |>
+    select(grid_id)
 )
-names(shiny_ew_density_raster) <- "ew_ha_2025_idw"
+
+# polygon_area ist die Fläche des ungeteilten Ausgangspolygons (nicht die der
+# Schnittfläche) - nur so ergibt intersection_area / polygon_area den Bruchteil
+# der Bevölkerung, der in diese Zelle fällt.
+poly_area <- ew_poly |>
+  mutate(polygon_area = as.numeric(st_area(geom))) |>
+  st_drop_geometry() |>
+  select(point_id, polygon_area)
+
+intersections <- intersections |>
+  mutate(intersection_area = as.numeric(st_area(geom))) |>
+  left_join(poly_area, by = "point_id") |>
+  mutate(ew_share = ew2025 * intersection_area / polygon_area)
+
+# EW je Rasterzelle aufsummieren: 100 x 100 m = 1 ha, d. h. EW je Zelle =
+# EW je Hektar.
+ew_cells <- intersections |>
+  st_drop_geometry() |>
+  group_by(grid_id) |>
+  summarise(ew2025 = sum(ew_share), .groups = "drop")
+
+shiny_ew_density_raster <- grid_100 |>
+  left_join(ew_cells, by = "grid_id") |>
+  mutate(ew2025 = coalesce(ew2025, 0)) |>
+  # Nur die EW-Spalte rasterisieren - grid_id würde sonst als zweites Band
+  # mitgeschrieben.
+  select(ew2025) |>
+  st_rasterize(dx = 100, dy = 100)
+
+names(shiny_ew_density_raster) <- "ew_ha_2025_areal"
 
 # check
+c(
+  zellen_berlin = nrow(grid_100),
+  na_zellen     = sum(is.na(shiny_ew_density_raster$ew_ha_2025_areal)),
+  null_zellen   = sum(shiny_ew_density_raster$ew_ha_2025_areal == 0, na.rm = TRUE),
+  ew_summe      = sum(shiny_ew_density_raster$ew_ha_2025_areal, na.rm = TRUE)
+)
 shiny_ew_density_raster
 
 

@@ -3193,25 +3193,16 @@
   },
   "files": {
     "app.R": {
-      "checksum": "3c7f617d261c7c39cae224aa8b162667"
+      "checksum": "8016a2dcab9c9bb21fbbf970240a64b6"
     },
     "data/shiny_data.RData": {
-      "checksum": "633f5575387aa3e647ba0368c54da7f3"
+      "checksum": "2920f6c392475ac61471956f00cc60ef"
     },
     "www/background.png": {
       "checksum": "0db45cce88506fcd192e82540073d914"
     },
     "www/plot_lakes_ew.png": {
       "checksum": "4f1625d6f1718ffe4966de876fc287d1"
-    },
-    "www/start_foto_tegeler_see.jpg": {
-      "checksum": "c27d1fabc4f85ec60f908e4cf6b22137"
-    },
-    "www/start_map_shiny_cycle.png": {
-      "checksum": "df656b63a2364af3dde8a3eff5ef20be"
-    },
-    "www/start_map_shiny_walk.png": {
-      "checksum": "015616c4fca5eb637f4316210374c20b"
     }
   },
   "users": null

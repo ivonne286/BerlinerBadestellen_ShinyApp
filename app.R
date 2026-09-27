@@ -34,6 +34,17 @@ shiny_lakes <- shiny_lakes |>
     )
   )
 
+# Quellen-/Copyright-Zeile unterhalb der Karte (früher tm_credits() im Kartenbild)
+map_credits_text <- paste0(
+  "© Berliner Badestellen 2026, I.Giske · Daten: Geoportal Berlin, ",
+  "HeiGIT/openrouteservice · Basemaps: ",
+  if (nzchar(Sys.getenv("STADIA_MAPS_API_KEY"))) {
+    "© Stadia Maps / © OpenMapTiles / © OpenStreetMap contributors"
+  } else {
+    "© CARTO / © OpenStreetMap contributors"
+  }
+)
+
 # ─────────────────────────────────────────────────────────
 # USER INTERFACE UI
 # ─────────────────────────────────────────────────────────
@@ -210,17 +221,34 @@ ui <- fluidPage(
       height: calc(100vh - 200px);      /* dynamische Höhe: Viewport abzüglich Titel+Tabs */
       min-height: 560px;
     }
-    .map-tab-layout .map-wrap {
+    /* Spalte innerhalb des Karten-Tabs: Karte oben, Quellenzeile unten */
+    .map-tab-layout .map-column {
       flex: 1 1 auto;
       min-width: 0;
       height: 100%;
       min-height: 560px;
+      display: flex;
+      flex-direction: column;
+    }
+    .map-tab-layout .map-wrap {
+      flex: 1 1 auto;
+      min-width: 0;
+      height: auto;
+      min-height: 0;
     }
     .map-tab-layout .map-wrap .shiny-tmap,
     .map-tab-layout .map-wrap .leaflet,
     .map-tab-layout .map-wrap .mapboxgl-map {
       height: 100% !important;
-      min-height: 560px;
+      min-height: 520px;
+    }
+    /* Quellen-/Copyright-Zeile unterhalb der Karte (statt im Kartenbild) */
+    .map-credits {
+      flex: 0 0 auto;
+      font-size: 11px;
+      line-height: 1.3;
+      color: #6c757d;
+      padding: 6px 2px 0 2px;
     }
     .iso-box {
       width: 20vw;
@@ -411,29 +439,37 @@ ui <- fluidPage(
           value = "karte",
           div(
             class = "map-tab-layout",
+            # Karte + Quellenzeile untereinander. Die Credits stehen bewusst
+            # NICHT im Kartenbild: im interaktiven Modus sind für die
+            # Dichte-Legende nur die vier Ecken möglich, unten rechts
+            # überlagerte sie sonst die Legende.
             div(
-              class = "map-wrap",
-              style = "position: relative;",
-              tmapOutput("main_map", height = "100%"),
-              # Custom legend: Kreisgröße = Druck auf Badestelle
-              # (vorläufig deaktiviert; tmap-Size-Legende oben rechts genutzt)
+              class = "map-column",
               div(
-                style = "display: none; position: absolute; bottom: 40px; right: 10px; z-index: 1000;
-                         width: 180px; background: #FFFFFFCC; padding: 10px 14px;
-                         border-radius: 4px; box-shadow: 0 1px 4px #0000004D;",
-                p(style = "font-family: sans-serif; font-size: 12px; font-weight: normal; color: black; margin: 0 0 8px 0;",
-                  "Badestelle – Rang"),
-                div(style = "display: flex; align-items: center;",
-                  div(style = "text-align: center;",
-                    div(style = "width: 12px; height: 12px; border-radius: 50%; background: #00EEEE; border: 2px solid darkslategrey; margin: 0 auto;"),
-                    p(style = "font-size: 10px; margin: 3px 0 0 0; color: black;", "niedrig")),
-                  div(style = "display: flex; align-items: center; width: 60px; margin-top: -6px;",
-                    div(style = "flex: 1; height: 2px; background: darkslategrey;"),
-                    div(style = "width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 8px solid darkslategrey;")),
-                  div(style = "text-align: center;",
-                    div(style = "width: 28px; height: 28px; border-radius: 50%; background: #00EEEE; border: 2px solid darkslategrey; margin: 0 auto;"),
-                    p(style = "font-size: 10px; margin: 3px 0 0 0; color: black;", "hoch")))
-              )
+                class = "map-wrap",
+                style = "position: relative;",
+                tmapOutput("main_map", height = "100%"),
+                # Custom legend: Kreisgröße = Druck auf Badestelle
+                # (vorläufig deaktiviert; tmap-Size-Legende oben rechts genutzt)
+                div(
+                  style = "display: none; position: absolute; bottom: 40px; right: 10px; z-index: 1000;
+                           width: 180px; background: #FFFFFFCC; padding: 10px 14px;
+                           border-radius: 4px; box-shadow: 0 1px 4px #0000004D;",
+                  p(style = "font-family: sans-serif; font-size: 12px; font-weight: normal; color: black; margin: 0 0 8px 0;",
+                    "Badestelle – Rang"),
+                  div(style = "display: flex; align-items: center;",
+                    div(style = "text-align: center;",
+                      div(style = "width: 12px; height: 12px; border-radius: 50%; background: #00EEEE; border: 2px solid darkslategrey; margin: 0 auto;"),
+                      p(style = "font-size: 10px; margin: 3px 0 0 0; color: black;", "niedrig")),
+                    div(style = "display: flex; align-items: center; width: 60px; margin-top: -6px;",
+                      div(style = "flex: 1; height: 2px; background: darkslategrey;"),
+                      div(style = "width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 8px solid darkslategrey;")),
+                    div(style = "text-align: center;",
+                      div(style = "width: 28px; height: 28px; border-radius: 50%; background: #00EEEE; border: 2px solid darkslategrey; margin: 0 auto;"),
+                      p(style = "font-size: 10px; margin: 3px 0 0 0; color: black;", "hoch")))
+                )
+              ),
+              div(class = "map-credits", map_credits_text)
             ),
             div(
               class = "iso-box",
@@ -563,7 +599,7 @@ ui <- fluidPage(
             p("Die gesamte Datenaufbereitung ist im github-Repository unter scripts/ einsehbar, hier sollen nur einige wichtige Punkte transparent dargelegt werden:"),
             p("Die Punktgeometrien einiger Badestellen wurden geringfügig lagekorrigiert, damit sie geeignete Zugangspunkte für die anschließende Erreichbarkeitsanalyse darstellen. Einige Original-Punkte lagen mitten im Gewässer, andere schon im Land Brandenburg. Zum Vergleich sind beide Datensätze als Geopackages auf github downloadbar unter data/lakes_original.gpkg und data/lakes_new.gpkg."),
             p("Die interaktive Karte zeigt einen Layer mit Wasserflächen, die über OpenStreetMap/Overpass abgefragt wurden. Aus diesen Wasserflächen wurden zur Orientierung und aus Designgründen lediglich die wichtigsten Berliner Gewässer, insbesondere größere Seen und Fließgewässer, für die Karte ausgewählt."),
-            p("Für die Analyse der Einwohnerdichte wurden zunächst Polygone ohne Einwohner*innen (EW) sowie als Gewässer klassifizierte Flächen ausgeschlossen. Darunter waren drei Polygone mit insgesamt 15 Einwohner*innen, die unplausiblerweise innerhalb von Gewässerflächen lagen. Aus den verbleibenden Polygonen wurde jeweils ein innerhalb des Polygons liegender Repräsentativpunkt (Bevölkerungspunkt) abgeleitet. Die im Ausgangsdatensatz enthaltenen Einwohnerzahlen wurden den entsprechenden Punkten zugeordnet. Für die Karte wurde daraus durch IDW-Interpolation ein Rasterdatensatz mit der Auflösung 100x100 m erstellt (Layer Einwohnerdichte)."),
+            p("Für die Analyse der Einwohnerdichte wurden zunächst Polygone ohne Einwohner*innen (EW) sowie als Gewässer klassifizierte Flächen ausgeschlossen. Darunter waren drei Polygone mit insgesamt 15 Einwohner*innen, die unplausiblerweise innerhalb von Gewässerflächen lagen. Aus den verbleibenden Polygonen wurde jeweils ein innerhalb des Polygons liegender Repräsentativpunkt (Bevölkerungspunkt) abgeleitet. Die im Ausgangsdatensatz enthaltenen Einwohnerzahlen wurden den entsprechenden Punkten zugeordnet; diese Punkte sind die Grundlage der Erreichbarkeits- und Gravity-Analyse. Für die Karte wurden die Einwohnerzahlen der Dichtepolygone flächenanteilig auf ein Raster mit der Auflösung 100x100 m umgelegt und auf die Berliner Stadtgrenze maskiert (Layer Einwohnerdichte). Eine Rasterzelle entspricht 1 ha, der Zellwert daher den Einwohner*innen je Hektar."),
             p("Die Isochronen der 39 Badestellen wurden für zwei Mobilitätsmodi (Fahrrad, Fuß) für drei Zeiten (bis 5, 10 und 20 Minuten) über den OpenRouteService abgerufen. Aus Gründen der Übersichtlichkeit wurden sie zu je drei Zonen pro Modus zusammengeführt und sind in der App als Layer Erreichbarkeitszonen visualisiert."),
             hr(),
             h4("Gravity-Modell und Ranking der Badestellen", id = "meta-h-gravity"),
@@ -721,6 +757,7 @@ server <- function(input, output, session) {
         col_alpha = 0.7,
         col.legend = tm_legend(
           title = "Einwohnerdichte (EW/ha)",
+          # im interaktiven (view-)Modus nur die vier Ecken möglich
           position = c("left", "bottom"),
           orientation = "landscape"
         )
@@ -848,15 +885,6 @@ server <- function(input, output, session) {
             "a:hover { color: #00CDCD; }"
           )
         )
-      ) +
-
-      tm_credits(
-        if (nzchar(Sys.getenv("STADIA_MAPS_API_KEY"))) {
-          "© Berliner Badestellen 2026, I.Giske · Daten: Geoportal Berlin, HeiGIT/openrouteservice · Basemaps: © Stadia Maps / © OpenMapTiles / © OpenStreetMap contributors"
-        } else {
-          "© Berliner Badestellen 2026, I.Giske · Daten: Geoportal Berlin, HeiGIT/openrouteservice · Basemaps: © CARTO / © OpenStreetMap contributors"
-        },
-        position = c("right", "bottom")
       ) +
 
       tm_layout(legend.position = c("right", "top"), control.collapse = FALSE)
