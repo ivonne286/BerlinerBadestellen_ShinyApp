@@ -123,7 +123,19 @@ ui <- fluidPage(
     details summary { cursor: pointer; color: #006366; font-size: 14px; }
     details summary:hover { color: #00494C; }
 
-    /* Outline-Navigation im Metadaten-Tab */
+    /* Outline-Navigation im Metadaten-Tab.
+       Der Meta-Inhalt bekommt eine eigene Scrollfläche in der Höhe des
+       Karten-Tabs (siehe .meta-scroll). Dadurch scrollt die Seite selbst
+       nicht, die Sidebar steht still, es gibt keine zweite Scrollbar in der
+       Sidebar, und die Ankersprünge landen wie gewohnt oben. */
+    .meta-scroll {
+      max-width: 900px;
+      padding-top: 14px;
+      padding-right: 24px;
+      height: calc(100vh - 200px);
+      min-height: 560px;
+      overflow-y: auto;
+    }
     .meta-nav ul { margin-bottom: 0; }
     .meta-nav li { margin-bottom: 6px; }
     /* Unterpunkte (h4-Ebene) eingerückt und kleiner */
@@ -484,7 +496,7 @@ ui <- fluidPage(
           value = "ranking",
           h3("Alle Ortsteile im Vergleich"),
           hr(),
-          p("Hinweis: Prozentwerte und EW/ha sind auf 1, Flächen auf 2 Nachkommastelle(n) gerundet", style = "font-size: 13px; font-weight: normal; font-style: italic"),
+          p("Hinweis: EW = Einwohner*innen. Prozentwerte und EW/ha sind auf 1, Flächen auf 2 Nachkommastelle(n) gerundet", style = "font-size: 13px; font-weight: normal; font-style: italic"),
           hr(),
           DT::dataTableOutput("ranking_table")
         ),
@@ -506,10 +518,10 @@ ui <- fluidPage(
           title = tagList(icon("database"), " Metadaten & Methodik"),
           value = "meta",
           div(
-            style = "max-width: 900px; padding-top: 14px; padding-right: 24px;",
+            class = "meta-scroll",
             div(
               id = "meta-daten",
-            h3(class = "meta-section-title", "Metadaten"),
+            h3(class = "meta-section-title", "Metadaten", id = "meta-h-daten"),
             hr(),
             h4("Autorin", id = "meta-h-autorin"),
             p("Ivonne Giske", br(),
@@ -570,7 +582,7 @@ ui <- fluidPage(
           
           div(
             id = "meta-umsetzung",
-            h3(class = "meta-section-title", "Umsetzung & Code"),
+            h3(class = "meta-section-title", "Umsetzung & Code", id = "meta-h-umsetzung"),
             hr(),
             h4("R, R-Pakete und Versionen", id = "meta-h-pakete"),
             p("Die Anwendung wurde als Shiny-App mit tmap und tmap.mapgl in RStudio entwickelt."),
@@ -593,7 +605,7 @@ ui <- fluidPage(
 
           div(
             id = "meta-methodik",
-            h3(class = "meta-section-title", "Methodik"),
+            h3(class = "meta-section-title", "Methodik", id = "meta-h-methodik"),
             hr(),
             h4("Hinweise zur Datenaufbereitung", id = "meta-h-aufbereitung"),
             p("Die gesamte Datenaufbereitung ist im github-Repository unter scripts/ einsehbar, hier sollen nur einige wichtige Punkte transparent dargelegt werden:"),
@@ -601,6 +613,7 @@ ui <- fluidPage(
             p("Die interaktive Karte zeigt einen Layer mit Wasserflächen, die über OpenStreetMap/Overpass abgefragt wurden. Aus diesen Wasserflächen wurden zur Orientierung und aus Designgründen lediglich die wichtigsten Berliner Gewässer, insbesondere größere Seen und Fließgewässer, für die Karte ausgewählt."),
             p("Für die Analyse der Einwohnerdichte wurden zunächst Polygone ohne Einwohner*innen (EW) sowie als Gewässer klassifizierte Flächen ausgeschlossen. Darunter waren drei Polygone mit insgesamt 15 Einwohner*innen, die unplausiblerweise innerhalb von Gewässerflächen lagen. Aus den verbleibenden Polygonen wurde jeweils ein innerhalb des Polygons liegender Repräsentativpunkt (Bevölkerungspunkt) abgeleitet. Die im Ausgangsdatensatz enthaltenen Einwohnerzahlen wurden den entsprechenden Punkten zugeordnet; diese Punkte sind die Grundlage der Erreichbarkeits- und Gravity-Analyse. Für die Karte wurden die Einwohnerzahlen der Dichtepolygone flächenanteilig auf ein Raster mit der Auflösung 100x100 m umgelegt und auf die Berliner Stadtgrenze maskiert (Layer Einwohnerdichte). Eine Rasterzelle entspricht 1 ha, der Zellwert daher den Einwohner*innen je Hektar."),
             p("Die Isochronen der 39 Badestellen wurden für zwei Mobilitätsmodi (Fahrrad, Fuß) für drei Zeiten (bis 5, 10 und 20 Minuten) über den OpenRouteService abgerufen. Aus Gründen der Übersichtlichkeit wurden sie zu je drei Zonen pro Modus zusammengeführt und sind in der App als Layer Erreichbarkeitszonen visualisiert."),
+            p("Für die Analyse wurde in der Projektion ETRS89 / UTM Zone 33N (EPSG:25833) gerechnet – Flächen, Distanzen und die Rückprojektion der Isochronen. Der Abruf der Isochronen beim OpenRouteService erfolgte in WGS 84 (EPSG:4326), die Darstellung in der Webkarte in Web Mercator (EPSG:3857, Pseudo-Mercator)."),
             hr(),
             h4("Gravity-Modell und Ranking der Badestellen", id = "meta-h-gravity"),
             p("Das Ranking der Badestellen basiert auf einem selbst erstellten Gravity-Modell, das berücksichtigt, wie gut die Badestellen von der Berliner Bevölkerung aus erreichbar sind und wie stark sie dabei mit anderen erreichbaren Badestellen konkurrieren."),
@@ -625,7 +638,7 @@ ui <- fluidPage(
                 label = "Nach oben",
                 icon = icon("arrow-up"),
                 style = "background-color: #00868B; color: #FFFFFF; border: 1px solid #00868B; border-radius: 4px; padding: 8px 20px; font-weight: bold;",
-                onclick = "(function(btn){var el=btn.closest('.tab-pane.active, .tab-content, .main-column, .container-fluid'); while(el && el.scrollHeight <= el.clientHeight){el=el.parentElement;} if(el){el.scrollTo({top:0,behavior:'smooth'});}})(this);"
+                onclick = "(function(btn){var el=btn.closest('.meta-scroll')||btn.closest('.tab-pane.active'); if(el){el.scrollTo({top:0,behavior:'smooth'});}})(this);"
               )
             )
           )
