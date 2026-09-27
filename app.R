@@ -767,7 +767,10 @@ server <- function(input, output, session) {
       # Basis - Heatmap
       tm_shape(shiny_ew_density_raster, name = "Einwohnerdichte") +
       tm_raster(
-        col.scale = tm_scale_continuous_sqrt(values = "yl_or_rd"),
+        col.scale = tm_scale_continuous_sqrt(
+          values = "yl_or_rd",
+          limits = c(0, 600),
+          ticks = c(0, 200, 400, 600)),
         col_alpha = 0.7,
         col.legend = tm_legend(
           title = "Einwohnerdichte (EW/ha)",
