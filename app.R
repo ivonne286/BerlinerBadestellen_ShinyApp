@@ -631,7 +631,6 @@ ui <- fluidPage(
             p("Die Anwendung soll eine datenbasierte Betrachtung des Themas ermöglichen und damit zur Diskussion über eine gerechte und bedarfsorientierte Verteilung von Bademöglichkeiten in Berlin beitragen. Sie kann zudem aufzeigen, wo sich dicht besiedelte „Badewüsten“ befinden – und damit Anhaltspunkte dafür geben, an welchen Standorten die Ausweisung neuer Badestellen sinnvoll wäre. Die Ergebnisse können als Grundlage für weiterführende Untersuchungen dienen, etwa zur Frage, wie die Erreichbarkeit mit sozioökonomischen und demografischen Merkmalen der Bevölkerung zusammenhängt."),
             hr(),
             h4("Datenquellen", id = "meta-h-datenquellen"),
-            p("Die Zahlen des Tabs Startseite stammen aus den folgenden Quellen und sind hier jeweils mit aufgeführt."),
             p(strong("Gesamtfläche"), br(),
               "891,1 km²: selbst berechnet als Summe der Bezirksflächen (Geoportal Berlin: ALKIS Bezirke, siehe Bezirke, Ortsteile)."
             ),
@@ -641,8 +640,10 @@ ui <- fluidPage(
                 href = "https://www.berlin.de/sen/uvk/umwelt/wasser-und-geologie/oberflaechengewaesser/",
                 target = "_blank"), "."
             ),
+            p(strong("Einwohner*innen"), br(),
+              "3,9 Mio. EW: Summe der Einwohnerzahlen der verwendeten Flächen aus dem Einwohnerdichte-Datensatz (3.913.490 EW, Datenstand 2025)."),
             p(strong("Einwohnerdichte"), br(),
-              "3,9 Mio. Einwohner*innen: Summe der Einwohnerzahlen der verwendeten Flächen (3.913.490 EW, Datenstand 2025). Quelle: Geoportal Berlin: Einwohnerdichte 2025 (Umweltatlas), Layer ua_einwohnerdichte_2025 (WFS). Datengeber: Amt für Statistik Berlin-Brandenburg. Lizenz: CC BY 3.0 DE. Abgerufen am 07.09.2026. ",
+              "Geoportal Berlin: Einwohnerdichte 2025 (Umweltatlas), Layer ua_einwohnerdichte_2025 (WFS). Datengeber: Amt für Statistik Berlin-Brandenburg. Lizenz: CC BY 3.0 DE. Abgerufen am 07.09.2026. ",
               a("Metadaten-Link", href = "https://gdi.berlin.de/geonetwork/srv/ger/catalog.search#/metadata/69b82abc-377e-44d2-b598-c8feb8643e95", target = "_blank"), "."
             ),
             p(strong("Badestellen"), br(),
