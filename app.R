@@ -709,6 +709,7 @@ ui <- fluidPage(
             p("Die interaktive Karte zeigt einen Layer mit Wasserflächen, die über OpenStreetMap/Overpass abgefragt wurden. Aus diesen Wasserflächen wurden zur Orientierung und aus Designgründen lediglich die wichtigsten Berliner Gewässer, insbesondere größere Seen und Fließgewässer, für die Karte ausgewählt."),
             p("Aus dem Datensatz der Einwohnerdichte wurden zunächst Polygone ohne Einwohner*innen sowie als Gewässer klassifizierte Flächen ausgeschlossen. Darunter waren drei Polygone mit insgesamt 15 Einwohner*innen, die unplausiblerweise innerhalb von Gewässerflächen lagen. Aus den verbleibenden Polygonen wurde jeweils ein innerhalb des Polygons liegender Repräsentativpunkt (Bevölkerungspunkt) abgeleitet und die im Ausgangsdatensatz enthaltenen Einwohnerzahlen entsprechend zugeordnet; diese Punkte sind die Grundlage der Erreichbarkeits- und Gravity-Analyse."),
             p("Für das Einwohnerdichte-Raster wurden die Einwohnerzahlen der originalen Dichtepolygone flächenanteilig auf ein Raster mit der Auflösung 100x100 m umgelegt und auf die Berliner Stadtgrenze maskiert. Eine Rasterzelle entspricht 1 ha, der Zellwert daher den Einwohner*innen je Hektar."),
+            p("Die Farbskala der Dichtekarte ist bei 600 EW/ha gekappt. Vier Rasterzellen liegen darüber (höchster Wert: 991 EW/ha); sie werden für die Darstellung auf 600 EW/ha begrenzt, damit die Farbabstufung den dicht besiedelten Hauptbereich der Verteilung abbildet. Die betroffenen Zellen sind in der Karte daher nicht über die oberste Farbstufe hinaus unterscheidbar."),
             p("Die Isochronen der 39 Badestellen wurden für zwei Mobilitätsmodi (Fahrrad, Fuß) für drei Zeiten (bis 5, 10 und 20 Minuten) über den OpenRouteService abgerufen. Aus Gründen der Übersichtlichkeit wurden sie zu je drei Zonen pro Modus zusammengeführt und sind in der App als Layer Erreichbarkeitszonen visualisiert."),
             p("Für die Analyse wurde in der Projektion ETRS89 / UTM Zone 33N (EPSG:25833) gerechnet – Flächen, Distanzen und die Rückprojektion der Isochronen. Der Abruf der Isochronen beim OpenRouteService erfolgte in WGS 84 (EPSG:4326), die Darstellung in der Webkarte in Web Mercator (EPSG:3857, Pseudo-Mercator)."),
             hr(),
@@ -941,7 +942,12 @@ server <- function(input, output, session) {
       tm_raster(
         col.scale = tm_scale_continuous_sqrt(
           values = "yl_or_rd",
+          # Farbskala bewusst bis 600 EW/ha. Die vier Rasterzellen darüber
+          # (bis 991 EW/ha) werden auf 600 gekappt statt auf NA gesetzt:
+          # sonst weiße Lücken im dichten Innenstadtbereich plus die
+          # tmap-Warnung "outliers have been set to NA".
           limits = c(0, 600),
+          outliers.trunc = TRUE,
           ticks = c(0, 200, 400, 600)),
         col_alpha = 0.7,
         col.legend = tm_legend(
