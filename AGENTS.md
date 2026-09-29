@@ -19,10 +19,10 @@
 - Die Skripte enthalten kein `rm(list=ls())` mehr — jedes Skript lädt alle Eingaben selbst aus Dateien; 3a → 3b → 3c → 4 → 5 laufen daher in einer einzigen R-Session durch.
 
 ## Metadaten-Dokumentation
-- `notes/Metadaten_Methodik.md` ist die Arbeitsfassung für den Tab `meta` ("Metadaten & Methodik"). Die Nutzerin bearbeitet diese Datei extern und ergänzt sie; der Stand wird später in die App übernommen.
-- Die Datei spiegelt bewusst die Gliederung der App: `# Metadaten`, `# Umsetzung & Code`, `# Methodik`, jeweils mit denselben Unterüberschriften. Übernahme 1:1: Markdown-Überschrift → `h4()`, Absatz → `p()`, `**fett**` → `strong()`, Link → `a(href = ..., target = "_blank")`, die `---`-Linien entsprechen den `hr()`-Trennern.
-- Ausnahme beim Übernehmen: Das "Datum der letzten Aktualisierung" steht in der Datei fest, in der App kommt es aus `Sys.Date()`.
-- Die Datei ist reine Arbeitsgrundlage und hat keine technische Verbindung zur App; sie kann verschoben werden.
+- Der Tab `meta` ("Metadaten & Methodik") wird direkt in `app.R` gepflegt (statisches Markup im UI: `h3`/`h4`/`p`/`hr`/`a`).
+- Die frühere externe Arbeitsfassung `notes/Metadaten_Methodik.md` existiert nicht mehr (Stand 2026-09-30, wird nicht mehr gebraucht) — nicht danach suchen, nicht darauf verweisen, nicht neu anlegen.
+- Inhalt und Outline immer zusammen pflegen: neuer Unterabschnitt = `h4(id = "meta-h-...")` im passenden `div(id = "meta-...")` UND neuer `tags$li(tags$a(href = "#meta-h-..."))` in der Meta-Outline.
+- Das "Datum der letzten Aktualisierung" kommt weiterhin aus `Sys.Date()`.
 
 ## Wichtige App-Fakten
 - Travel-Mode-Umschaltung (Fahrrad/Fuß) als Radio-Buttons `map_mode` im statischen Kopf der linken Sidebar des Karten-Tabs; die Werte `cycling-regular`/`foot-walking` liegen in `shiny_lakes`/`shiny_iso_rings` vor. Zentraler Helper `sel_mode()`: außerhalb des Tabs `karte` immer `cycling-regular`.
