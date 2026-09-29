@@ -3193,10 +3193,10 @@
   },
   "files": {
     "app.R": {
-      "checksum": "8016a2dcab9c9bb21fbbf970240a64b6"
+      "checksum": "3c48789ba5f634244d048a49cf0ffeb8"
     },
     "data/shiny_data.RData": {
-      "checksum": "2920f6c392475ac61471956f00cc60ef"
+      "checksum": "b38b0a08db29ae9196d669f409f58a57"
     },
     "www/background.png": {
       "checksum": "0db45cce88506fcd192e82540073d914"

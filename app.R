@@ -41,13 +41,22 @@ dt_counter <- "function(settings) {
 # "," als Dezimaltrennzeichen). Der render formatiert nur bei type == "display";
 # für sort/filter kommt der Rohwert zurück, damit DataTables numerisch bleibt.
 # Intl.NumberFormat('de-DE') läuft im Browser, unabhängig von der R-Locale.
-dt_num_fmt <- function(digits) {
+# na_label:  optionale Anzeige fuer echte NA-Werte (z. B. "–" fuer
+#            "kein Rang" in den Fuss-Spalten der Badestellen-Tabelle).
+# zero_label: optionale Anzeige fuer den Traegerwert 0. Nur wo 0 wirklich
+#            "kein Rang" bedeutet einsetzen, sonst trifft es auch echte Nullen.
+# Beide ohne Argument -> bisheriges Verhalten.
+dt_num_fmt <- function(digits, zero_label = NULL, na_label = NULL) {
+  na_ret <- if (is.null(na_label)) "data" else sprintf("'%s'", na_label)
+  zero_case <- if (is.null(zero_label)) "" else
+    sprintf("       if (data === 0) return '%s';\n", zero_label)
   sprintf(
     "function(data, type, row) {
-       if (type !== 'display' || data === null) return data;
-       return new Intl.NumberFormat('de-DE',
+       if (type !== 'display') return data;
+       if (data === null) return %s;
+%s       return new Intl.NumberFormat('de-DE',
          {minimumFractionDigits: %d, maximumFractionDigits: %d}).format(data);
-     }", digits, digits)
+     }", na_ret, zero_case, digits, digits)
 }
 
 # lake ids + German details link (map click handling + popups, both tabs)
@@ -533,7 +542,9 @@ ui <- fluidPage(
           value = "lakes",
           h3("Alle Badestellen im Vergleich"),
           hr(),
-          p("Hinweis: EW = Einwohner*innen. 39 ausgewiesene und überwachte Badestellen. Rang und zugerechnete EW sind modellbasiert (Gravity-Modell, Methodik siehe Tab Metadaten); Prozentwerte auf 1 Nachkommastelle, EW auf ganze Personen gerundet; Anzeige mit Komma als Dezimal- und Punkt als Tausendertrennzeichen. Die Spalte „Nr.“ zählt die aktuell angezeigten Zeilen durch.",
+          p("Hinweise: EW = Einwohner*innen. 39 ausgewiesene und überwachte Badestellen. Rang und zugerechnete EW sind modellbasiert (Gravity-Modell, Methodik siehe Tab Metadaten); Prozentwerte auf 1 Nachkommastelle, EW auf ganze Personen gerundet.", br(),
+            "Zwei Badestellen haben zu Fuß keinen Rang, weil in ihrer 20-Minuten-Zone keine Wohnbevölkerung liegt; sie sind in den Spalten „zu Fuß“ als „–“ dargestellt und stehen beim aufsteigenden Sortieren nach „Rang (zu Fuß)“ zuerst.", br(),
+            "Die auf 1 Nachkommastelle gerundete Anzeige „0,0“ in den Prozent-Spalten bedeutet nicht „keine Einwohner*innen“, sondern einen Anteil von unter 0,05 %; die zugerechnete absolute Zahl steht in der jeweiligen Nachbarspalte.", br(),
             style = "font-size: 13px; font-weight: normal; font-style: italic"),
           hr(),
           DT::dataTableOutput("lakes_table")
@@ -764,7 +775,9 @@ server <- function(input, output, session) {
     lakes <- shiny_lakes |>
       filter(mode == sel_mode()) |>
       mutate(
-        legend_label = "Badestelle",
+        # Punktart: die zu Fuß ungerankten Badestellen bekommen offene weiße
+        # Punkte (dunkler Rand bleibt) statt der cyan gefüllten "niedrig"-Punkte.
+        point_kind = if_else(is.na(rank), "kein Rang", "Badestelle"),
         rank_html = paste0(
           '<span style="color:#00CDCD; font-size:20px; font-weight:bold;">',
           rank_label, "</span>"
@@ -790,6 +803,14 @@ server <- function(input, output, session) {
       min(lakes$gravity_visual, na.rm = TRUE),
       max(lakes$gravity_visual, na.rm = TRUE)
     )
+
+    # Füllung der Badestellenpunkte. Die Kategorie "kein Rang" ist auch im
+    # Fahrrad-Modus in der Skala definiert (dort kommt sie in den Daten nicht
+    # vor), damit fill = "point_kind" in beiden Zweigen gültig bleibt.
+    lake_fill_scale <- tm_scale_categorical(values = c(
+      "Badestelle" = "cyan2",
+      "kein Rang"   = "white"
+    ))
 
     if (sel_mode() == "cycling-regular") {
       ring_colors <- c(
@@ -817,13 +838,15 @@ server <- function(input, output, session) {
       # Zu Fuß haben zwei Badestellen keine zugewiesenen EW (kein Score, kein
       # Rang). Ohne value.na fielen ihre Punkte ganz aus der Karte, obwohl
       # ihre Isochronen sichtbar sind. value.na gibt ihnen eine feste
-      # Mindestgröße und einen eigenen Legendeneintrag. 0.25 entspricht knapp
-      # 1,8 px Radius – etwas über dem kleinsten gerankten Punkt (0,8 px).
+      # Mindestgröße und einen eigenen Legendeneintrag; die offene weiße
+      # Füllung (lake_fill_scale) unterscheidet sie zusätzlich von den
+      # "niedrig" gerankten Punkten. 0.25 entspricht knapp 1,8 px Radius –
+      # etwas über dem kleinsten gerankten Punkt (0,8 px).
       lake_size_scale <- tm_scale_continuous(
         ticks = lake_size_ticks,
         labels = c("niedrig", "hoch"),
         value.na = 0.25,
-        label.na = "kein Rang (0 EW zu Fuß)"
+        label.na = "kein Rang (0 EW)"
       )
     }
 
@@ -934,7 +957,8 @@ server <- function(input, output, session) {
           position = c("right", "bottom")
         ),
         size.scale = lake_size_scale,
-        fill = "cyan2",
+        fill = "point_kind",
+        fill.scale = lake_fill_scale,
         fill.legend = tm_legend_hide(),
         fill_alpha = 0.9,
         col = "darkslategrey",
@@ -1314,11 +1338,9 @@ server <- function(input, output, session) {
       zone_row("mehr als 20 Min.", rest_pct, rest_pop, "#EE6363", "#EE6363", "#EE6363"),
       hr(),
 
-      h3("Badestellen unter Druck"),
-      p(style = "font-size: 16px; font-weight: bold; margin: 0 0 4px 0;",
-        icon("umbrella-beach"), " Top 3"),
+      h3("Badestellen Top 3", icon("umbrella-beach")),
       p(style = "font-size: 13px; font-weight: normal; font-style: italic; margin: 0 0 8px 0;",
-        "Rang 1 = höchste Anzahl zugeordneter Einwohner*innen", tags$sup("2")),
+        "Rang 1 = höchste zugewiesene EW", tags$sup("2"),),
 
       lapply(seq_len(nrow(top3)), function(i) {
         p(style = "margin: 2px 0; color: #15C8CF; font-weight: bold; font-size: 15px;",
@@ -1328,7 +1350,7 @@ server <- function(input, output, session) {
 
       p(style = "font-size: 13px; font-weight: normal; font-style: italic; margin-top: 8px;",
         "Fußnoten", tags$br(),
-        tags$sup("1"), "Gesamtbevölkerung Berlin laut Datenbasis (2025): 3,9 Mio. EW.",
+        tags$sup("1"), " Gesamtbevölkerung Berlin laut Datenbasis (2025): 3,9 Mio. EW.",
         tags$br(),
         tags$sup("2"), " Der Rang ergibt sich aus den der Badestelle zugerechneten Einwohner*innen auf Basis eines Gravity-Modells (siehe 'Metadaten', unter Methodik). Das gesamte Ranking finden Sie in der 'Badestellen-Tabelle'.")
 
@@ -1417,21 +1439,21 @@ server <- function(input, output, session) {
         style = "font-size: 19px; margin-top: 10px;"),
 
       challenge_box(
-        "Aufgabe 1",
+        "Aufgabe A1",
         "Welcher Ortsteil hat die meisten eigenen Badestellen?",
         "#EE6363",
         paste0(a1$ortsteil[[1]], " (", a1$bezirk[[1]], ")"),
         paste0(a1$lake_count[[1]], " Badestellen: ", paste(a1_lakes, collapse = ", "), ".")
       ),
       challenge_box(
-        "Aufgabe 2",
+        "Aufgabe A2",
         "In wie vielen Bezirken liegen keine der 39 Badestellen?",
         "#EE6363",
         paste0(length(a2), " der 12 Bezirke"),
         paste0(paste(a2, collapse = ", "), ".")
       ),
       challenge_box(
-        "Aufgabe 3",
+        "Aufgabe A3",
         "Von wie vielen Ortsteilen aus lässt sich in 20 Minuten zu Fuß keine Badestelle erreichen?",
         "#EE6363",
         paste0(n_walk0_gerundet, " Ortsteile"),
@@ -1440,7 +1462,7 @@ server <- function(input, output, session) {
                "(in der Tabelle gerundet auf 0 %).")
       ),
       challenge_box(
-        "Aufgabe 4",
+        "Aufgabe A4",
         "Welche zwei Badestellen werden vom kleinsten Berliner Ortsteil aus mit dem Fahrrad in maximal 20 Minuten erreicht?",
         "#EE6363",
         paste0(a4$lake_name[[1]], " und ", a4$lake_name[[2]]),
@@ -1451,7 +1473,7 @@ server <- function(input, output, session) {
                fmt_pct1(100 * a4$ew_reached[[2]] / a4_ot$pop_total[[1]]), " %).")
       ),
       challenge_box(
-        "Aufgabe 5",
+        "Aufgabe A5",
         "Die Bevölkerung welches Bezirks (all seiner Ortsteile) kann in 20 Minuten weder zu Fuß noch mit dem Rad keine Badestellen erreichen?",
         "#EE6363",
         a5$bezirk[[1]],
@@ -1524,6 +1546,12 @@ server <- function(input, output, session) {
       filter(mode == "foot-walking") |>
       select(lake_name, rank, pressure_share_pct)
 
+    # Fuss-Spalten: die beiden zu Fuss ungerankten Badestellen (kein Score,
+    # kein Rang) behalten ihren echten NA-Wert und werden nur in der Anzeige
+    # als "–" dargestellt (na_label im Renderer). Ein Traegerwert 0 fuer die
+    # EW-Spalten waere falsch: dort wuerde auch die gerundete Anzeige 0,0
+    # echter Messwerte zu "–" werden. Rang (zu Fuß) behaelt 0 als Traegerwert,
+    # damit die zwei Zeilen fuer Aufgabe B5 sortier- und filterbar bleiben.
     lk_tab <- lk_c |>
       left_join(lk_w, by = "lake_name", suffix = c(".cyc", ".walk")) |>
       transmute(
@@ -1534,7 +1562,7 @@ server <- function(input, output, session) {
         `Rang (Fahrrad)` = rank.cyc,
         `Zugerechnete EW in % (Fahrrad)` = round(pressure_share_pct.cyc, 1),
         `Zugerechnete EW (Fahrrad)` = round(pressure_share_pct.cyc / 100 * 3913490),
-        `Rang (zu Fuß)` = rank.walk,
+        `Rang (zu Fuß)` = coalesce(rank.walk, 0L),
         `Zugerechnete EW in % (zu Fuß)` = round(pressure_share_pct.walk, 1),
         `Zugerechnete EW (zu Fuß)` = round(pressure_share_pct.walk / 100 * 3913490)
       ) |>
@@ -1551,8 +1579,12 @@ server <- function(input, output, session) {
           list(targets = 0, orderable = FALSE, searchable = FALSE), # Nr.
           list(targets = 5, render = JS(dt_num_fmt(1))),  # Zugerechnete EW % (Fahrrad)
           list(targets = 6, render = JS(dt_num_fmt(0))),  # Zugerechnete EW (Fahrrad)
-          list(targets = 8, render = JS(dt_num_fmt(1))),  # Zugerechnete EW % (zu Fuß)
-          list(targets = 9, render = JS(dt_num_fmt(0)))   # Zugerechnete EW (zu Fuß)
+          # Fuss-Spalten: NA = "kein Rang" -> als "–"; bei Rang (zu Fuß)
+          # kommt statt NA der Traegerwert 0 an. Echte 0-Werte in den
+          # EW-Spalten (gerundet 0,0) bleiben als "0,0" sichtbar.
+          list(targets = 7, render = JS(dt_num_fmt(0, zero_label = "–"))),  # Rang (zu Fuß)
+          list(targets = 8, render = JS(dt_num_fmt(1, na_label = "–"))),    # Zugerechnete EW % (zu Fuß)
+          list(targets = 9, render = JS(dt_num_fmt(0, na_label = "–")))     # Zugerechnete EW (zu Fuß)
         ),
         drawCallback = JS(dt_counter),
         language = list(
