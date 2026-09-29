@@ -69,15 +69,24 @@ shiny_lakes <- shiny_lakes |>
     )
   )
 
-# Quellen-/Copyright-Zeile unterhalb der Karte (früher tm_credits() im Kartenbild)
+# Basemap-Credit der Kacheln. Nötig, weil die CARTO-/Esri-Kacheln als rohes
+# URL-Template geladen werden und Leaflet dabei keine Provider-Attribution
+# mitliefert.
+basemap_credit_text <- if (nzchar(Sys.getenv("CARTO_API_KEY"))) {
+  "© CARTO / © OpenMapTiles / © OpenStreetMap contributors"
+} else {
+  "© Esri / © OpenStreetMap contributors"
+}
+
+# Copyright-Zeile als Leaflet-Attribution IM Kartenbild (unten rechts). Wird
+# per tm_credits() in der Kartenkette gesetzt, siehe renderTmap: tmap legt den
+# Text als Kachel-Layer mit attribution = "" an, und Leaflet fügt fremde
+# Attributionen unten rechts zusammen. Eigenes Copyright und Basemap-Credit
+# stehen dort in einer Zeile; die frühere Zeile unter der Karte entfällt, die
+# Karte gewinnt dadurch deren Höhe.
 map_credits_text <- paste0(
-  "© Berliner Badestellen 2026, I.Giske · Daten: Geoportal Berlin, ",
-  "HeiGIT/openrouteservice · Basemaps: ",
-  if (nzchar(Sys.getenv("STADIA_MAPS_API_KEY"))) {
-    "© Stadia Maps / © OpenMapTiles / © OpenStreetMap contributors"
-  } else {
-    "© CARTO / © OpenStreetMap contributors"
-  }
+  "© Berliner Badestellen 2026, I.Giske · ",
+  basemap_credit_text
 )
 
 # ─────────────────────────────────────────────────────────
@@ -90,26 +99,61 @@ ui <- fluidPage(
   tags$style(HTML("
     .container-fluid > .row { display: flex; }
     /* Layout: linke Sidebar 20 %, Hauptbereich füllt den Rest */
+    /* Linke Sidebar: Höhe richtet sich nach dem Inhalt (bzw. nach der
+       Flex-Zeile). Keine Scroll-Logik hier – die Tabellen-Tabs brauchen
+       keine, der Meta-Tab hat mit .meta-scroll seine eigene. */
     .left-sidebar {
       flex: 0 0 20vw;
       margin-left: 16px;
       min-height: 0;
       max-height: none;
-      overflow-y: auto;
       align-self: stretch;
+      /* Bezugsrahmen für die absolut positionierte Scrollfläche im Karten-Tab
+         (siehe .map-sidebar-scroll). Für die anderen Tabs ohne Wirkung. */
+      position: relative;
     }
     .main-column {
       flex: 1 1 auto;
       min-width: 0;
     }
 
-    /* Einheitlicher Sidebar-Style (Hintergrund, Rahmen, Unterkante) */
+    /* Einheitlicher Sidebar-Style (Hintergrund, Rahmen, Unterkante).
+       Der Innenabstand ist bewusst knapp (16px); im Karten-Tab deckt die
+       absolut positionierte Scrollfläche ihn ab und bringt den Abstand
+       selbst mit (siehe .map-sidebar-scroll). */
     .left-sidebar {
       background-color: #F5F5F5;
       border: 1px solid #E3E3E3;
       border-radius: 4px;
-      padding: 20px;
+      padding: 16px;
     }
+
+    /* Scrollfläche nur im Karten-Tab: umschließt den kompletten Inhalt der
+       linken Sidebar (Überschrift, Mobilitätsmodus, Reset, Details), damit
+       die Karte immer sichtbar bleibt.
+       Sie liegt absolut im Innenraum der Sidebar. Grund: Die Sidebar ist ein
+       gestrecktes Flex-Element und hat damit keine definite Höhe – eine
+       prozentuale Höhe (height: 100%) fällt dort auf auto zurück und es
+       entstünde kein Scrollbalken. Bei absolut positionierten Kindern ist der
+       Bezugsrahmen dagegen die Padding-Box der Sidebar, also deren
+       tatsächliche (gestreckte) Höhe. Vorteil: keine festen Pixelwerte, kein
+       Restabstand unten, und weil die Fläche aus dem Fluss ist, kann langer
+       Inhalt die Kartenzeile nicht mehr strecken.
+       inset: 0 reicht bis an den Rahmen (Scrollbalken am Rand), das Padding
+       bringt die Fläche selbst mit. */
+    .map-sidebar-scroll {
+      position: absolute;
+      inset: 0;
+      box-sizing: border-box;
+      padding: 16px 16px 4px 16px;
+      overflow-y: auto;
+    }
+    /* Kein Absatz-Abstand am Ende des Inhalts (sonst Leerstreifen unter dem
+       Text). uiOutput rendert einen eigenen Wrapper-div, daher zusätzlich
+       eine Ebene tiefer greifen – sonst bleibt der margin-bottom des letzten
+       Elements (z. B. der Badestellen-Liste) stehen. */
+    .map-sidebar-scroll > *:last-child { margin-bottom: 0; }
+    .map-sidebar-scroll > *:last-child > *:last-child { margin-bottom: 0; }
 
     .tabbable > .nav > li > a {
       background-color: #E1F0F1;
@@ -268,7 +312,8 @@ ui <- fluidPage(
       height: calc(100vh - 200px);      /* dynamische Höhe: Viewport abzüglich Titel+Tabs */
       min-height: 560px;
     }
-    /* Spalte innerhalb des Karten-Tabs: Karte oben, Quellenzeile unten */
+    /* Spalte innerhalb des Karten-Tabs: enthält nur noch die Karte, der
+       Copyright-Hinweis steckt in der Karte selbst */
     .map-tab-layout .map-column {
       flex: 1 1 auto;
       min-width: 0;
@@ -289,42 +334,43 @@ ui <- fluidPage(
       height: 100% !important;
       min-height: 520px;
     }
-    /* Quellen-/Copyright-Zeile unterhalb der Karte (statt im Kartenbild) */
-    .map-credits {
-      flex: 0 0 auto;
-      font-size: 11px;
-      line-height: 1.3;
-      color: #6c757d;
-      padding: 6px 2px 0 2px;
-    }
+    /* Rechte Box im Karten-Tab: gleiche Scroll-Logik wie die linke Sidebar,
+       die Höhe kommt aus der Flex-Höhe der Karten-Zeile. Kein Padding auf
+       der Box selbst: es liegt in .iso-scroll, damit der Scrollbalken am
+       Rand sitzt statt neben dem Text. */
     .iso-box {
       width: 20vw;
       flex: 0 0 20vw;
+      box-sizing: border-box;
       background-color: #F5F5F5;
       border: 1px solid #E3E3E3;
       border-radius: 4px;
-      padding: 20px;
+      padding: 0;
       height: 100%;
+      max-height: 100%;
       min-height: 560px;
+    }
+    .iso-scroll {
+      height: 100%;
+      box-sizing: border-box;
+      padding: 16px 16px 4px 16px;
       overflow-y: auto;
     }
+    .iso-scroll > *:last-child { margin-bottom: 0; }
+    .iso-scroll > *:last-child > *:last-child { margin-bottom: 0; }
 
     /* 15-Zoll-Laptops und kleiner: Seitbars etwas schmaler */
     @media (max-width: 1400px) {
       .left-sidebar { flex: 0 0 18vw; }
-      .iso-box {
-        flex: 0 0 18vw;
-        padding: 16px;
-      }
+      .iso-box { flex: 0 0 18vw; }
+      .iso-scroll { padding: 12px 12px 4px 12px; }
     }
 
     /* sehr kleine Laptops: Seitbars minimal schmaler, etwas weniger Padding */
     @media (max-width: 1200px) {
       .left-sidebar { flex: 0 0 16vw; }
-      .iso-box {
-        flex: 0 0 16vw;
-        padding: 14px;
-      }
+      .iso-box { flex: 0 0 16vw; }
+      .iso-scroll { padding: 10px 10px 4px 10px; }
     }
 
   ")),
@@ -372,29 +418,33 @@ ui <- fluidPage(
           "Datenquellen zu diesen Kennzahlen: siehe Tab Metadaten & Methodik, Abschnitt „Datenquellen“.")
       ),
       # map sidebar: Überschrift + Karten-Einstellungen (statisch),
-      # darunter Dropdowns und Details je nach Auswahl
+      # darunter Dropdowns und Details je nach Auswahl.
+      # Der div ist die Scrollfläche des Karten-Tabs (siehe .map-sidebar-scroll).
       conditionalPanel(
         condition = "input.map_tab == 'karte'",
-        h3("Einwohnerdichte und Erreichbarkeit von Badestellen nach Ortsteilen"),
-        hr(),
-        radioButtons(
-          inputId = "map_mode",
-          label = "Mobilitätsmodus:",
-          choiceNames = list(
-            tagList(icon("bicycle"), " Fahrrad"),
-            tagList(icon("person-walking"), " Zu Fuß")
+        div(
+          class = "map-sidebar-scroll",
+          h3("Einwohnerdichte und Erreichbarkeit von Badestellen nach Ortsteilen"),
+          hr(),
+          radioButtons(
+            inputId = "map_mode",
+            label = "Mobilitätsmodus:",
+            choiceNames = list(
+              tagList(icon("bicycle"), " Fahrrad"),
+              tagList(icon("person-walking"), " Zu Fuß")
+            ),
+            choiceValues = c("cycling-regular", "foot-walking"),
+            selected = "cycling-regular",
+            inline = TRUE
           ),
-          choiceValues = c("cycling-regular", "foot-walking"),
-          selected = "cycling-regular",
-          inline = TRUE
-        ),
-        actionButton(
-          inputId = "reset_map",
-          label = tagList(icon("rotate-left"), " Ansicht zurücksetzen"),
-          style = "width: 100%; margin-top: 8px; background-color: #FFFFFF; color: #006366; border: 1px solid #00868B; border-radius: 4px; padding: 6px 12px; font-weight: bold;"
-        ),
-        hr(),
-        uiOutput("sidebar_content")
+          actionButton(
+            inputId = "reset_map",
+            label = tagList(icon("rotate-left"), " Ansicht zurücksetzen"),
+            style = "width: 100%; margin-top: 8px; background-color: #FFFFFF; color: #006366; border: 1px solid #00868B; border-radius: 4px; padding: 6px 12px; font-weight: bold;"
+          ),
+          hr(),
+          uiOutput("sidebar_content")
+        )
       ),
       # ranking tab: challenges
       conditionalPanel(
@@ -486,10 +536,10 @@ ui <- fluidPage(
           value = "karte",
           div(
             class = "map-tab-layout",
-            # Karte + Quellenzeile untereinander. Die Credits stehen bewusst
-            # NICHT im Kartenbild: im interaktiven Modus sind für die
-            # Dichte-Legende nur die vier Ecken möglich, unten rechts
-            # überlagerte sie sonst die Legende.
+            # Karte und rechte Info-Box nebeneinander. Der Copyright-Hinweis
+            # steht in der Karte selbst (Leaflet-Attribution unten rechts, per
+            # tm_credits() in der Kartenkette, siehe renderTmap): er stapelt
+            # sich dort unter die Badestellen-Legende und überdeckt sie nicht.
             div(
               class = "map-column",
               div(
@@ -515,12 +565,14 @@ ui <- fluidPage(
                       div(style = "width: 28px; height: 28px; border-radius: 50%; background: #00EEEE; border: 2px solid darkslategrey; margin: 0 auto;"),
                       p(style = "font-size: 10px; margin: 3px 0 0 0; color: black;", "hoch")))
                 )
-              ),
-              div(class = "map-credits", map_credits_text)
+              )
             ),
             div(
               class = "iso-box",
-              uiOutput("iso_sidebar")
+              div(
+                class = "iso-scroll",
+                uiOutput("iso_sidebar")
+              )
             )
           )
         ),
@@ -611,7 +663,14 @@ ui <- fluidPage(
             ),
             hr(),
             h4("Basemaps und Anbieter", id = "meta-h-basemaps"),
-            p("Stadia Maps / CARTO / OpenMapTiles / OpenStreetMap."),
+            p(if (nzchar(Sys.getenv("CARTO_API_KEY"))) {
+                paste0("CARTO / OpenMapTiles / OpenStreetMap. „hell“ ist CARTO Positron (label-frei), ",
+                       "„dunkel“ CARTO DarkMatter (label-frei), „OSM“ die beschriftete OpenStreetMap-Karte. ",
+                       "Die CARTO-Kacheln werden mit API-Key geladen (Free Tier, bis 5 Mio. Kacheln/Monat).")
+              } else {
+                paste0("Esri / OpenStreetMap. Ohne CARTO-API-Key werden „hell“ und „dunkel“ durch die ",
+                       "graue Esri-Karte ersetzt; „OSM“ bleibt die beschriftete OpenStreetMap-Karte.")
+              }),
             hr(),
           ),
           
@@ -734,34 +793,47 @@ server <- function(input, output, session) {
     reset_key(reset_key() + 1)
   })
 
-  # ── Basemap helper: Stadia with API key, fallback to CartoDB ──
-  # Three basemaps as a single radio group in the native tmap layer control.
-  basemap_layer <- reactive({
-    api_key <- Sys.getenv("STADIA_MAPS_API_KEY")
+  # ── Basemap helper: CARTO mit API-Key, sonst grauer Esri-Fallback ──
+  # Drei Basiskarten im Radio der Ebenensteuerung (die Radiogruppe entsteht
+  # über die Basisgruppen des Layer-Controls). Reihenfolge = Startzustand:
+  # die erste Karte ist beim Laden aktiv, "hell" ist also der Default.
+  # Kein group = "Basiskarte": der server-Vektor ist bereits benannt, tmap
+  # ignoriert das Argument dann und warnt zusätzlich zweimal.
+  # "hell" und "dunkel" sind label-frei, damit die eigenen Kartenlabels
+  # (Ortsteile, Badestellen) lesbar bleiben; nur die OSM-Karte ist beschriftet.
+  # CARTO verlangt den Key seit August 2026 als "?key=" im Kachel-URL; ohne Key
+  # liefert der Server eine Wasserzeichen-Kachel (kein Fehler, aber leere Karte).
+  # tmap reicht das `api`-Argument von tm_basemap() im view-Modus nicht an
+  # leaflet::addProviderTiles() durch (Stand tmap 4.4-1), daher explizite
+  # URL-Templates. {s}/{z}/{x}/{y} löst Leaflet selbst auf.
+  basemap_layer <- function() {
+    api_key <- Sys.getenv("CARTO_API_KEY")
+
     if (nzchar(api_key)) {
+      carto <- function(style) {
+        paste0("https://{s}.basemaps.cartocdn.com/", style,
+               "/{z}/{x}/{y}.png?key=", api_key)
+      }
       tm_basemap(
         server = c(
-          "reduziert" = "Stadia.AlidadeDark",
-          "hell"      = "Stadia.AlidadeSmooth",
-          "OSM-style" = "Stadia.OSMBright"
+          "hell"   = carto("light_nolabels"),
+          "dunkel" = carto("dark_nolabels"),
+          "OSM"    = "OpenStreetMap"
         ),
-        api = api_key,
-        group = "Basiskarte",
         group.control = "radio"
       )
     } else {
-      # Fallback if no key is available
+      # Ohne Key: einheitlich graue Esri-Karte, damit die Karte nie leer bleibt
       tm_basemap(
         server = c(
-          "reduziert" = "CartoDB.DarkMatter",
-          "hell"      = "CartoDB.PositronNoLabels",
-          "OSM-style" = "OpenStreetMap"
+          "hell"   = "Esri.WorldGrayCanvas",
+          "dunkel" = "Esri.WorldGrayCanvas",
+          "OSM"    = "OpenStreetMap"
         ),
-        group = "Basiskarte",
         group.control = "radio"
       )
     }
-  })
+  }
 
   # ────────────────────────
   # Interaktive Karte: Einwohnerdichte + Erreichbarkeitszonen
@@ -775,8 +847,9 @@ server <- function(input, output, session) {
     lakes <- shiny_lakes |>
       filter(mode == sel_mode()) |>
       mutate(
-        # Punktart: die zu Fuß ungerankten Badestellen bekommen offene weiße
-        # Punkte (dunkler Rand bleibt) statt der cyan gefüllten "niedrig"-Punkte.
+        # Punktart: die zu Fuß ungerankten Badestellen werden rot gefüllt
+        # (siehe lake_fill_scale) und größer gezeichnet (value.na), damit sie
+        # sich klar von den cyan gefüllten gerankten Punkten unterscheiden.
         point_kind = if_else(is.na(rank), "kein Rang", "Badestelle"),
         rank_html = paste0(
           '<span style="color:#00CDCD; font-size:20px; font-weight:bold;">',
@@ -809,7 +882,7 @@ server <- function(input, output, session) {
     # vor), damit fill = "point_kind" in beiden Zweigen gültig bleibt.
     lake_fill_scale <- tm_scale_categorical(values = c(
       "Badestelle" = "cyan2",
-      "kein Rang"   = "white"
+      "kein Rang"   = "red"
     ))
 
     if (sel_mode() == "cycling-regular") {
@@ -827,6 +900,8 @@ server <- function(input, output, session) {
         ticks = lake_size_ticks,
         labels = c("niedrig", "hoch")
       )
+      # Jede Badestelle hat einen Rang -> kein Hinweis in der Legende.
+      lake_legend_title <- "Badestelle – Rang"
     } else {
       ring_colors <- c(
         "Zone A (bis zu 5 Min.)"  = "#18C93E",
@@ -837,17 +912,26 @@ server <- function(input, output, session) {
       legend_title <- "Erreichbarkeitszonen zu Fuß"
       # Zu Fuß haben zwei Badestellen keine zugewiesenen EW (kein Score, kein
       # Rang). Ohne value.na fielen ihre Punkte ganz aus der Karte, obwohl
-      # ihre Isochronen sichtbar sind. value.na gibt ihnen eine feste
-      # Mindestgröße und einen eigenen Legendeneintrag; die offene weiße
-      # Füllung (lake_fill_scale) unterscheidet sie zusätzlich von den
-      # "niedrig" gerankten Punkten. 0.25 entspricht knapp 1,8 px Radius –
-      # etwas über dem kleinsten gerankten Punkt (0,8 px).
+      # ihre Isochronen sichtbar sind. value.na gibt ihnen eine feste Größe;
+      # 1.0 entspricht rund 7 px Radius (0.25 wären nur ca. 1,8 px, bei
+      # lwd = 2 also fast nur Rand). label.na = "" unterdrückt einen
+      # Legendeneintrag, denn tmap färbt den NA-Eintrag mit der Basis-
+      # Füllfarbe des Layers (cyan2) statt mit lake_fill_scale – er sähe
+      # damit aus wie "niedrig". Der Hinweis steht stattdessen als roter
+      # Punkt mit Text im Titel der Größenlegende.
       lake_size_scale <- tm_scale_continuous(
         ticks = lake_size_ticks,
         labels = c("niedrig", "hoch"),
-        value.na = 0.25,
-        label.na = "kein Rang (0 EW)"
+        value.na = 1.0,
+        label.na = ""
       )
+      # htmltools::HTML verhindert das Escapen des SVG-Punkts im Titel.
+      lake_legend_title <- htmltools::HTML(paste0(
+        "Badestelle – Rang<br>",
+        "<svg width='11' height='11' style='vertical-align:middle;margin-right:4px'>",
+        "<circle cx='5.5' cy='5.5' r='4' fill='#FF0000' stroke='#2F4F4F' stroke-width='1.5'/>",
+        "</svg>rot = kein Rang (0 EW)"
+      ))
     }
 
     basemap_layer() +
@@ -953,7 +1037,7 @@ server <- function(input, output, session) {
       tm_bubbles(
         size = "gravity_visual",
         size.legend = tm_legend(
-          title = "Badestelle – Rang",
+          title = lake_legend_title,
           position = c("right", "bottom")
         ),
         size.scale = lake_size_scale,
@@ -988,6 +1072,8 @@ server <- function(input, output, session) {
           )
         )
       ) +
+
+      tm_credits(map_credits_text) +
 
       tm_layout(legend.position = c("right", "top"), control.collapse = FALSE)
   })
@@ -1217,7 +1303,7 @@ server <- function(input, output, session) {
       ),
       hr(),
       
-      h5("Einwohnerdichte"),
+      h5("Ø Einwohnerdichte"),
       div(style = "font-size: 24px; font-weight: bold; color: #EE6363;",
       paste0(format(round(ot$pop_density[[1]] / 100, 1), big.mark = ".", decimal.mark = ","), " EW/ha")),
       
