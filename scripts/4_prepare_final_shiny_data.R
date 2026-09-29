@@ -400,6 +400,111 @@ shiny_ew_density_raster
 
 
 ### =============================
+# 4e) Erreichbare Badestellen je Ortsteil (personenbezogen)
+### =============================
+# Die App prüfte bisher geometrisch, ob die 20-Minuten-Isochrone ein
+# Ortsteil-Polygon schneidet. Das zählt auch Flächen mit, auf denen niemand
+# wohnt (Wasser, Wald), und widersprach damit den Prozentwerten, die aus den
+# Bevölkerungspunkten stammen. Hier entsteht dieselbe Bezugsbasis wie dort:
+# ein See gilt als erreichbar, wenn mindestens ein EW-Punkt des Ortsteils in
+# einer seiner Isochronen bis 20 Minuten liegt.
+#
+# Achtung: die ORS-Isochronen sind nicht streng geschachtelt, der 20-Minuten-
+# Ring eines Sees kann also Punkte ausschließen, die in seinem 5- oder
+# 10-Minuten-Ring liegen (betrifft im Datenstand 3 Punkte / 82 EW beim
+# Strandbad Heiligensee). Skript 3a zählt solche Punkte über min(walk_min)
+# mit, deshalb muss hier die Vereinigung aller drei Zeitfenster verwendet
+# werden - sonst weichen Liste und Prozentwert minimal voneinander ab.
+iso_all <- all_isochrones_sf |>
+  select(lake_name, mode, minutes)
+
+# Punkt-See-Paare über alle Zeitfenster (ein Punkt kann in mehreren
+# Isochronen und Zeitfenstern desselben Sees liegen)
+pt_iso_hits <- st_intersects(ew_points_b, iso_all)
+
+point_lake_pairs <- lapply(seq_along(pt_iso_hits), function(i) {
+  idx <- pt_iso_hits[[i]]
+  if (length(idx) == 0) return(NULL)
+  data.frame(
+    ortsteil = ew_points_b$ortsteil[i],
+    mode = iso_all$mode[idx],
+    lake_name = iso_all$lake_name[idx],
+    point_id = ew_points_b$point_id[i],
+    ew2025 = ew_points_b$ew2025[i]
+  )
+}) |>
+  bind_rows() |>
+  # je Punkt und See nur einmal zählen (mehrere Zeitfenster desselben Sees)
+  distinct(ortsteil, mode, lake_name, point_id, ew2025)
+
+# Achtung zur Interpretation von ew_reached: ein Bevölkerungspunkt, der
+# mehrere Seen erreicht, geht in jeden dieser Seen ein. Die Summe über die
+# Seen eines Ortsteils ist deshalb größer als dessen Bevölkerung in der
+# 20-Minuten-Zone. Für die Erreichbarkeitsquote zählt stattdessen die Zahl
+# der Personen, die mindestens einen See erreichen (reach_check unten).
+shiny_ortsteil_lakes <- point_lake_pairs |>
+  group_by(ortsteil, mode, lake_name) |>
+  summarise(
+    n_points = n(),
+    ew_reached = sum(ew2025),
+    .groups = "drop"
+  )
+
+# Kontrolle: die Zahl der Personen mit mindestens einem erreichbaren See muss
+# je Ortsteil und Modus exakt der 20-Minuten-Erreichbarkeit aus Skript 3a
+# entsprechen, sonst passen Liste und Prozentzahl in der App nicht zusammen
+reach_check <- point_lake_pairs |>
+  distinct(ortsteil, mode, point_id, ew2025) |>
+  group_by(ortsteil, mode) |>
+  summarise(ew_reached_any = sum(ew2025), .groups = "drop") |>
+  pivot_wider(names_from = mode, values_from = ew_reached_any)
+
+reach_check <- shiny_ortsteile |>
+  st_drop_geometry() |>
+  select(ortsteil, pop_cycle_within_20, pop_walk_within_20) |>
+  left_join(reach_check, by = "ortsteil") |>
+  mutate(
+    # Ortsteile ohne erreichbare Badestelle fehlen im neuen Objekt
+    across(any_of(c("cycling-regular", "foot-walking")), ~ replace_na(.x, 0)),
+    diff_cycle = .data[["cycling-regular"]] - pop_cycle_within_20,
+    diff_walk  = .data[["foot-walking"]] - pop_walk_within_20
+  )
+
+stopifnot(
+  all(reach_check$diff_cycle == 0),
+  all(reach_check$diff_walk == 0)
+)
+
+# Übersicht (Ortsteil, Modus)-Paare: personenbezogen vs. geometrisch gezählt
+person_paare <- shiny_ortsteil_lakes |>
+  count(mode, ortsteil, name = "n")
+
+iso20_all <- all_isochrones_sf |> filter(minutes == 20)
+
+geo_paare <- lapply(c("cycling-regular", "foot-walking"), function(m) {
+  iso_m <- iso20_all[iso20_all$mode == m, ]
+  data.frame(
+    mode = m,
+    ortsteil = shiny_ortsteile$ortsteil[
+      lengths(st_intersects(shiny_ortsteile, iso_m)) > 0
+    ]
+  )
+}) |>
+  bind_rows() |>
+  count(mode, ortsteil, name = "n")
+
+person_paare |>
+  left_join(geo_paare, by = c("mode", "ortsteil"), suffix = c("_person", "_geo")) |>
+  group_by(mode) |>
+  summarise(
+    ortsteile_mit_liste = n(),
+    seen_person = sum(n_person),
+    seen_geo = sum(n_geo),
+    ueberzaehlig_geo = sum(n_geo - n_person)
+  )
+
+
+### =============================
 # 5) Final Shiny Data Check
 ### =============================
 shiny_lakes |>
@@ -411,6 +516,7 @@ summary(shiny_ortsteile)
 summary(shiny_bezirke)
 summary(shiny_iso_unions)
 summary(shiny_iso_rings)
+summary(shiny_ortsteil_lakes)
 summary(shiny_water_background)
 summary(shiny_ew_density_raster)
 

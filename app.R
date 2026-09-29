@@ -24,6 +24,32 @@ library(DT)
 load("data/shiny_data.RData")
 tmap_mode("view")
 
+# ─────────────────────────────────────────────────────────
+# DT-Helfer: dynamischer Zeilenzaehler fuer Spalte 0 ("Nr.").
+# Zaehlt im aktuellen Filter-/Sortierzustand durchgehend 1..n und
+# beruecksichtigt den Seiten-Offset.
+# ─────────────────────────────────────────────────────────
+dt_counter <- "function(settings) {
+  var api = this.api();
+  var start = api.page.info().start;
+  api.column(0, {page: 'current'}).nodes().each(function(cell, i) {
+    cell.innerHTML = start + i + 1;
+  });
+}"
+
+# Deutsche Zahlformatierung für die Tabellenanzeige ("." als Tausender-,
+# "," als Dezimaltrennzeichen). Der render formatiert nur bei type == "display";
+# für sort/filter kommt der Rohwert zurück, damit DataTables numerisch bleibt.
+# Intl.NumberFormat('de-DE') läuft im Browser, unabhängig von der R-Locale.
+dt_num_fmt <- function(digits) {
+  sprintf(
+    "function(data, type, row) {
+       if (type !== 'display' || data === null) return data;
+       return new Intl.NumberFormat('de-DE',
+         {minimumFractionDigits: %d, maximumFractionDigits: %d}).format(data);
+     }", digits, digits)
+}
+
 # lake ids + German details link (map click handling + popups, both tabs)
 shiny_lakes <- shiny_lakes |>
   mutate(
@@ -496,7 +522,7 @@ ui <- fluidPage(
           value = "ranking",
           h3("Alle Ortsteile im Vergleich"),
           hr(),
-          p("Hinweis: EW = Einwohner*innen. Prozentwerte und EW/ha sind auf 1, Flächen auf 2 Nachkommastelle(n) gerundet.", style = "font-size: 13px; font-weight: normal; font-style: italic"),
+          p("Hinweis: EW = Einwohner*innen. Prozentwerte und EW/ha sind auf 1, Flächen auf 2 Nachkommastelle(n) gerundet; Anzeige mit Komma als Dezimal- und Punkt als Tausendertrennzeichen. Die Spalte „Nr.“ zählt die aktuell angezeigten Zeilen durch.", style = "font-size: 13px; font-weight: normal; font-style: italic"),
           hr(),
           DT::dataTableOutput("ranking_table")
         ),
@@ -507,7 +533,7 @@ ui <- fluidPage(
           value = "lakes",
           h3("Alle Badestellen im Vergleich"),
           hr(),
-          p("Hinweis: EW = Einwohner*innen. 39 ausgewiesene und überwachte Badestellen. Rang und zugerechnete EW sind modellbasiert (Gravity-Modell, Methodik siehe Tab Metadaten); Prozentwerte auf 1 Nachkommastelle, EW auf ganze Personen gerundet.",
+          p("Hinweis: EW = Einwohner*innen. 39 ausgewiesene und überwachte Badestellen. Rang und zugerechnete EW sind modellbasiert (Gravity-Modell, Methodik siehe Tab Metadaten); Prozentwerte auf 1 Nachkommastelle, EW auf ganze Personen gerundet; Anzeige mit Komma als Dezimal- und Punkt als Tausendertrennzeichen. Die Spalte „Nr.“ zählt die aktuell angezeigten Zeilen durch.",
             style = "font-size: 13px; font-weight: normal; font-style: italic"),
           hr(),
           DT::dataTableOutput("lakes_table")
@@ -664,6 +690,21 @@ shiny_bezirke$bezirk_click <- paste0("B_", seq_len(nrow(shiny_bezirke)))
 # ─────────────────────────────────────────────────────────
 server <- function(input, output, session) {
 
+  # Prozentanzeige mit 1 Nachkommastelle. Echte Werte > 0, die auf 0,0 runden
+  # würden, werden als "<0,1" ausgewiesen statt irreführend als "0,0".
+  fmt_pct1_txt <- function(x) {
+    vapply(as.numeric(x), function(v) {
+      r <- round(v, 1)
+      if (is.na(v)) {
+        "–"
+      } else if (v > 0 && r == 0) {
+        "<0,1"
+      } else {
+        format(r, big.mark = ".", decimal.mark = ",")
+      }
+    }, character(1))
+  }
+
   # Button "Zur Karte" auf der Startseite wechselt zur interaktiven Karte
   observeEvent(input$go_to_map, {
     updateTabsetPanel(session, "map_tab", selected = "karte")
@@ -744,6 +785,12 @@ server <- function(input, output, session) {
         minutes == "up to 20 min" ~ "Zone C (bis zu 20 Min.)"
       ))
 
+    # Größenlegende der Badestellen (modusabhängig, siehe Zweige unten)
+    lake_size_ticks <- c(
+      min(lakes$gravity_visual, na.rm = TRUE),
+      max(lakes$gravity_visual, na.rm = TRUE)
+    )
+
     if (sel_mode() == "cycling-regular") {
       ring_colors <- c(
         "Zone A (bis zu 5 Min.)"  = "#8C4BBE",
@@ -752,6 +799,13 @@ server <- function(input, output, session) {
       )
       ring_border <- "#6a3ea0"
       legend_title <- "Erreichbarkeitszonen mit Fahrrad"
+      # Fahrrad: jede Badestelle hat einen Rang, also keine NA-Größe.
+      # Wichtig: value.na = NULL explizit zu übergeben bricht tmap, deshalb
+      # wird die Skala hier komplett ohne die NA-Argumente aufgebaut.
+      lake_size_scale <- tm_scale_continuous(
+        ticks = lake_size_ticks,
+        labels = c("niedrig", "hoch")
+      )
     } else {
       ring_colors <- c(
         "Zone A (bis zu 5 Min.)"  = "#18C93E",
@@ -760,6 +814,17 @@ server <- function(input, output, session) {
       )
       ring_border <- "#0f7a2a"
       legend_title <- "Erreichbarkeitszonen zu Fuß"
+      # Zu Fuß haben zwei Badestellen keine zugewiesenen EW (kein Score, kein
+      # Rang). Ohne value.na fielen ihre Punkte ganz aus der Karte, obwohl
+      # ihre Isochronen sichtbar sind. value.na gibt ihnen eine feste
+      # Mindestgröße und einen eigenen Legendeneintrag. 0.25 entspricht knapp
+      # 1,8 px Radius – etwas über dem kleinsten gerankten Punkt (0,8 px).
+      lake_size_scale <- tm_scale_continuous(
+        ticks = lake_size_ticks,
+        labels = c("niedrig", "hoch"),
+        value.na = 0.25,
+        label.na = "kein Rang (0 EW zu Fuß)"
+      )
     }
 
     basemap_layer() +
@@ -868,11 +933,7 @@ server <- function(input, output, session) {
           title = "Badestelle – Rang",
           position = c("right", "bottom")
         ),
-        size.scale = tm_scale_continuous(
-          ticks = c(min(lakes$gravity_visual, na.rm = TRUE),
-                    max(lakes$gravity_visual, na.rm = TRUE)),
-          labels = c("niedrig", "hoch")
-        ),
+        size.scale = lake_size_scale,
         fill = "cyan2",
         fill.legend = tm_legend_hide(),
         fill_alpha = 0.9,
@@ -1074,10 +1135,15 @@ server <- function(input, output, session) {
     ot <- shiny_ortsteile |> filter(ortsteil == ot_name)
 
     # lakes reachable from this Ortsteil within 20 min (current mode):
-    # a lake counts if its 20-min isochrone covers part of the Ortsteil
-    iso20 <- shiny_isochrones |> filter(minutes == 20, mode == sel_mode())
-    reachable <- iso20$lake_name[lengths(st_intersects(iso20, ot)) > 0] |>
-      unique() |>
+    # a lake counts if at least one population point of the Ortsteil lies
+    # inside its 20-min isochrone - same basis as the percentage below
+    # (shiny_ortsteil_lakes is built in scripts/4_prepare_final_shiny_data.R).
+    # The earlier geometric test (isochrone touches the Ortsteil polygon)
+    # also counted water and forest areas and could list lakes as reachable
+    # that nobody in the Ortsteil can actually get to.
+    reachable <- shiny_ortsteil_lakes |>
+      filter(ortsteil == ot_name, mode == sel_mode()) |>
+      pull(lake_name) |>
       sort()
 
     # access share depending on the selected mode
@@ -1086,7 +1152,7 @@ server <- function(input, output, session) {
     } else {
       access_pct <- ot$walk_within_20_pct[[1]]
     }
-    pct_txt <- format(round(access_pct, 1), big.mark = ".", decimal.mark = ",")
+    pct_txt <- fmt_pct1_txt(access_pct)
     ot_txt  <- ot$ortsteil[[1]]
     mode_word <- if (sel_mode() == "cycling-regular") "mit Fahrrad" else "zu Fuß"
 
@@ -1274,30 +1340,45 @@ server <- function(input, output, session) {
   # ────────────────────────
   output$ranking_sidebar <- renderUI({
 
-    # Challenges beziehen sich fix auf Fahrrad – unabhängig vom Karten-Modus
-    otd <- shiny_ortsteile |>
+    # A1: Ortsteil mit den meisten eigenen Badestellen
+    a1 <- shiny_ortsteile |>
       st_drop_geometry() |>
-      select(ortsteil, bezirk, pop_total, pop_density, area_km2,
-             access = cycle_within_20_pct, pop_no = pop_cycle_not_within_20)
+      arrange(desc(lake_count)) |>
+      slice_head(n = 1)
+    a1_lakes <- shiny_lakes |>
+      st_drop_geometry() |>
+      filter(mode == "cycling-regular", ortsteil == a1$ortsteil) |>
+      pull(lake_name) |>
+      unique() |>
+      sort()
 
-    fmt_pop2 <- function(x) format(round(x), big.mark = ".", decimal.mark = ",")
-    fmt_dens <- function(x) format(round(x / 100, 1), big.mark = ".", decimal.mark = ",")
+    # A2: Bezirke, in denen keine Badestelle liegt
+    lk_bez <- shiny_lakes |>
+      st_drop_geometry() |>
+      filter(mode == "cycling-regular") |>
+      distinct(lake_name, bezirk)
+    a2 <- setdiff(shiny_bezirke$bezirk, lk_bez$bezirk)
 
-    # C1 (Fahrrad): 100 % Zugang, niedrigste Bevölkerungsdichte
-    c1 <- otd |> filter(access >= 99.95) |> arrange(pop_density) |> slice_head(n = 1)
-    # C2 (Fahrrad): 0 % Zugang, meisten EW ohne Zugang
-    c2 <- otd |> filter(access == 0) |> arrange(desc(pop_no)) |> slice_head(n = 1)
-    # C3 (zu Fuß): Anzahl Ortsteile mit (praktisch) 0 % Fuß-Zugang
+    # A3 (zu Fuß): Anzahl Ortsteile ohne Fuß-Zugang (exakt 0 %). Zusätzlich der
+    # auf 1 Nachkommastelle gerundete Wert: Fennpfuhl und Reinickendorf liegen
+    # knapp über 0 und erscheinen in der Tabelle ebenfalls als 0.
     n_walk0 <- sum(shiny_ortsteile$walk_within_20_pct == 0)
-    n_walk0_prac <- sum(round(shiny_ortsteile$walk_within_20_pct, 1) == 0)
-    # C4 (zu Fuß): 100 % Fuß-Zugang, kleinster Ortsteil
-    c4 <- shiny_ortsteile |>
+    n_walk0_gerundet <- sum(round(shiny_ortsteile$walk_within_20_pct, 1) == 0)
+
+    # A4: kleinster Ortsteil und die mit dem Rad in 20 Minuten erreichbaren
+    # Badestellen. ew_reached zählt je Badestelle die EW-Punkte, die in
+    # mindestens einer Isochrone bis 20 Minuten liegen; ein Punkt, der mehrere
+    # Seen erreicht, geht in jeden dieser Seen ein.
+    a4_ot <- shiny_ortsteile |>
       st_drop_geometry() |>
-      filter(walk_within_20_pct >= 99.95) |>
       arrange(area_km2) |>
       slice_head(n = 1)
-    # C5: Bezirk mit niedrigstem Zugang (Fahrrad + Fuß)
-    c5 <- shiny_ortsteile |>
+    a4 <- shiny_ortsteil_lakes |>
+      filter(mode == "cycling-regular", ortsteil == a4_ot$ortsteil) |>
+      arrange(desc(ew_reached))
+
+    # A5: Bezirk mit niedrigstem Zugang (Fahrrad + Fuß)
+    a5 <- shiny_ortsteile |>
       st_drop_geometry() |>
       group_by(bezirk) |>
       summarise(
@@ -1310,7 +1391,8 @@ server <- function(input, output, session) {
       arrange(reach, desc(pop)) |>
       slice_head(n = 1)
 
-    fmt_km2 <- function(x) format(round(x, 1), decimal.mark = ",")
+    fmt_pop2 <- function(x) format(round(x), big.mark = ".", decimal.mark = ",")
+    fmt_pct1 <- function(x) format(round(x, 1), big.mark = ".", decimal.mark = ",")
     # 2 Nachkommastellen, konsistent mit der km²-Spalte der Ortsteil-Tabelle
     fmt_km2_2 <- function(x) format(round(x, 2), decimal.mark = ",")
 
@@ -1329,59 +1411,51 @@ server <- function(input, output, session) {
       )
     }
 
-    section_hdr <- function(icon_name, label) {
-      h5(style = "color: #00494C; margin-bottom: 8px;",
-         icon(icon_name), " ", tags$strong(label))
-    }
-
     tagList(
       h3("Aufgaben"),
       p("Sortieren und filtern Sie in der Ortsteil-Tabelle, nutzen Sie auch die interaktive Karte zur Lösungsfindung.",
         style = "font-size: 19px; margin-top: 10px;"),
 
-      section_hdr("bicycle", "Fahrrad"),
       challenge_box(
         "Aufgabe 1",
-        "Welcher Ortsteil ist besonders dünn besiedelt und außerdem gut mit Badestellen versorgt?",
+        "Welcher Ortsteil hat die meisten eigenen Badestellen?",
         "#EE6363",
-        c1$ortsteil[[1]],
-        paste0("(", c1$bezirk[[1]], "): nur ", fmt_dens(c1$pop_density[[1]]), " EW/ha, aber ",
-               round(c1$access[[1]]), " % Fahrrad-Zugang in 20 Min. (",
-               fmt_pop2(c1$pop_total[[1]]), " EW).")
+        paste0(a1$ortsteil[[1]], " (", a1$bezirk[[1]], ")"),
+        paste0(a1$lake_count[[1]], " Badestellen: ", paste(a1_lakes, collapse = ", "), ".")
       ),
       challenge_box(
         "Aufgabe 2",
-        "In welchem Ortsteil leben die meisten Menschen ohne erreichbare Badestelle(n) – per Fahrrad innerhalb von maximal 20 Minuten?",
+        "In wie vielen Bezirken liegen keine der 39 Badestellen?",
         "#EE6363",
-        c2$ortsteil[[1]],
-        paste0("(", c2$bezirk[[1]], "): ", fmt_pop2(c2$pop_no[[1]]), " von ",
-               fmt_pop2(c2$pop_total[[1]]), " EW ohne Badestelle in 20 Min. (0 % Zugang)")
+        paste0(length(a2), " der 12 Bezirke"),
+        paste0(paste(a2, collapse = ", "), ".")
       ),
-
-      section_hdr("person-walking", "Zu Fuß"),
       challenge_box(
         "Aufgabe 3",
-        "Für wie viele der 97 Berliner Ortsteile gibt es keine (oder praktisch keine) Badestellen, die in maximal 20 Minuten zu Fuß erreichbar sind?",
+        "Von wie vielen Ortsteilen aus lässt sich in 20 Minuten zu Fuß keine Badestelle erreichen?",
         "#EE6363",
-        paste0(n_walk0_prac, " von 97 Ortsteilen"),
-        paste0(n_walk0, " Ortsteile haben exakt 0 %, 2 weitere (Fennpfuhl, Reinickendorf) liegen unter 0,1 %.")
+        paste0(n_walk0_gerundet, " Ortsteile"),
+        paste0("In ", n_walk0, " Ortsteilen liegt der Anteil der Einwohner*innen bei 0 %, ",
+               "in ", n_walk0_gerundet - n_walk0, " weiteren (Fennpfuhl, Reinickendorf) bei unter 0,1 % ",
+               "(in der Tabelle gerundet auf 0 %).")
       ),
       challenge_box(
         "Aufgabe 4",
-        "In welchem Ortsteil können alle Einwohner*innen zu Fuß (und mit Rad) in maximal 20 Minuten eine Badestelle erreichen?",
+        "Welche zwei Badestellen werden vom kleinsten Berliner Ortsteil aus mit dem Fahrrad in maximal 20 Minuten erreicht?",
         "#EE6363",
-        c4$ortsteil[[1]],
-        paste0("(", c4$bezirk[[1]], "): mit nur ", fmt_km2_2(c4$area_km2[[1]]),
-               " km² der zweitkleinste Ortsteil Berlins – Badestelle: Strandbad Halensee im angrenzenden Ortsteil Grunewald.")
+        paste0(a4$lake_name[[1]], " und ", a4$lake_name[[2]]),
+        paste0("Vom ", a4_ot$ortsteil[[1]], " (", a4_ot$bezirk[[1]], ", ",
+               fmt_km2_2(a4_ot$area_km2[[1]]), " km², ", fmt_pop2(a4_ot$pop_total[[1]]),
+               " EW): ", a4$lake_name[[1]], " erreicht mit dem Fahrrad in 20 Minuten alle EW, ",
+               a4$lake_name[[2]], " erreicht ", fmt_pop2(a4$ew_reached[[2]]), " EW (",
+               fmt_pct1(100 * a4$ew_reached[[2]] / a4_ot$pop_total[[1]]), " %).")
       ),
-
-      section_hdr("star", "Zusatzfrage"),
       challenge_box(
         "Aufgabe 5",
-        "Die Bevölkerung welches Bezirks (aller Ortsteile) kann in 20 Minuten keine Badestellen erreichen (zu Fuß und/oder Fahrrad)?",
+        "Die Bevölkerung welches Bezirks (all seiner Ortsteile) kann in 20 Minuten weder zu Fuß noch mit dem Rad keine Badestellen erreichen?",
         "#EE6363",
-        c5$bezirk[[1]],
-        paste0("0 % Zugang – weder zu Fuß noch mit dem Fahrrad (", fmt_pop2(c5$pop[[1]]),
+        a5$bezirk[[1]],
+        paste0("0 % Zugang – weder zu Fuß noch mit dem Fahrrad (", fmt_pop2(a5$pop[[1]]),
                " EW). Kein anderer Bezirk liegt bei beiden Mobilitätsmodi bei 0 %.")
       )
     )
@@ -1394,6 +1468,7 @@ server <- function(input, output, session) {
     ot_rank <- shiny_ortsteile |>
       st_drop_geometry() |>
       transmute(
+        `Nr.` = seq_len(n()),
         Ortsteil = ortsteil,
         Bezirk = bezirk,
         `EW` = round(pop_total),
@@ -1414,6 +1489,15 @@ server <- function(input, output, session) {
       options = list(
         pageLength = 15,
         lengthMenu = c(15, 30, 60, 90, 97),
+        columnDefs = list(
+          list(targets = 0, orderable = FALSE, searchable = FALSE), # Nr.
+          list(targets = 3, render = JS(dt_num_fmt(0))),  # EW
+          list(targets = 4, render = JS(dt_num_fmt(1))),  # EW/ha
+          list(targets = 5, render = JS(dt_num_fmt(2))),  # Fläche (km²)
+          list(targets = 7, render = JS(dt_num_fmt(1))),  # % Fahrrad
+          list(targets = 8, render = JS(dt_num_fmt(1)))   # % zu Fuß
+        ),
+        drawCallback = JS(dt_counter),
         language = list(
           emptyTable = "Keine Daten",
           search = "Suchen:",
@@ -1443,6 +1527,7 @@ server <- function(input, output, session) {
     lk_tab <- lk_c |>
       left_join(lk_w, by = "lake_name", suffix = c(".cyc", ".walk")) |>
       transmute(
+        `Nr.` = seq_len(n()),
         Badestelle = lake_name,
         Bezirk = bezirk,
         Ortsteil = ortsteil,
@@ -1462,6 +1547,14 @@ server <- function(input, output, session) {
       options = list(
         pageLength = 15,
         lengthMenu = c(15, 30, 39),
+        columnDefs = list(
+          list(targets = 0, orderable = FALSE, searchable = FALSE), # Nr.
+          list(targets = 5, render = JS(dt_num_fmt(1))),  # Zugerechnete EW % (Fahrrad)
+          list(targets = 6, render = JS(dt_num_fmt(0))),  # Zugerechnete EW (Fahrrad)
+          list(targets = 8, render = JS(dt_num_fmt(1))),  # Zugerechnete EW % (zu Fuß)
+          list(targets = 9, render = JS(dt_num_fmt(0)))   # Zugerechnete EW (zu Fuß)
+        ),
+        drawCallback = JS(dt_counter),
         language = list(
           emptyTable = "Keine Daten",
           search = "Suchen:",
